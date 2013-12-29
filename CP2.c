@@ -487,47 +487,69 @@ RSPVCL(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVCR(struct RSPCP2 *cp2, int16_t *vd,
-  const int16_t *vsData, const int16_t *vtDataIn, unsigned element) {
+  const int16_t *vsData, const int16_t *vtData, unsigned element) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
-  int16_t vtData[8];
-  unsigned i;
-  int ge, le;
-
 #ifdef USE_SSE
-  __m128i vtReg = _mm_load_si128((__m128i*) vtDataIn);
+  __m128i vsReg = _mm_load_si128((__m128i*) vsData);
+  __m128i vtReg = _mm_load_si128((__m128i*) vtData);
   vtReg = RSPGetVectorOperands(vtReg, element);
-    _mm_store_si128((__m128i*) vtData, vtReg);
+
+  __m128i cmp1, cmp2, negVtReg, notVtReg, snAluOp, temp, temp2a, temp2s;
+  __m128i ge, le, neq, sn, vce, zero;
+
+  /* sn = (vs ^ vt) < 0 */
+  zero = _mm_xor_si128(vsReg, vsReg);
+  sn = _mm_xor_si128(vsReg, vtReg);
+  sn = _mm_cmplt_epi16(sn, zero);
+
+  /* if ( sn) { snAluOp = (vs + vt); } */
+  /* if (!sn) { snAluOp = (vs - vt); } */
+  notVtReg = _mm_xor_si128(vtReg, sn);
+  negVtReg = _mm_add_epi16(notVtReg, sn);
+  snAluOp = _mm_sub_epi16(vsReg, negVtReg);
+
+  /* Compute ge, le for each case. */
+  /* if ( sn) { ge = (vt < 0);       le = (vs + vt < 0); */
+  /* if (!sn) { ge = (vs - vt >= 0); le = (vt < 0);      */
+  cmp1 = _mm_cmplt_epi16(vtReg, zero);
+  cmp2 = _mm_cmplt_epi16(snAluOp, zero);
+  cmp2 = _mm_cmpeq_epi16(cmp2, sn);
+
+#ifdef SSSE3_ONLY
+  temp2a = _mm_and_si128(sn, cmp1);
+  temp2s = _mm_andnot_si128(sn, cmp2);
+  ge = _mm_or_si128(temp2a, temp2s);
+  temp2a = _mm_and_si128(sn, cmp2);
+  temp2s = _mm_andnot_si128(sn, cmp1);
+  le = _mm_or_si128(temp2a, temp2s);
+#else
+  ge = _mm_blendv_epi8(cmp2, cmp1, sn);
+  le = _mm_blendv_epi8(cmp1, cmp2, sn);
+#endif
+
+  /* Compute accLow for each case. */
+  /* if ( sn) { accLow = le ? ~vt : vs; */
+  /* if (!sn) { accLow = le ?  vt : vs; */
+#ifdef SSSE3_ONLY
+  temp2a = _mm_and_si128(le, notVtReg);
+  temp2s = _mm_andnot_si128(le, vsReg);
+  temp = _mm_or_si128(temp2a, temp2s);
+#else
+  temp = _mm_blendv_epi8(vsReg, negVtReg, le);
+#endif
+
+  _mm_store_si128((__m128i*) accLow, temp);
+  _mm_store_si128((__m128i*) vd, temp);
+
+  temp = _mm_packs_epi16(le, ge);
+  _mm_store_si128((__m128i*) (cp2->vcolo.slices), _mm_setzero_si128());
+  _mm_store_si128((__m128i*) (cp2->vcohi.slices), _mm_setzero_si128());
+  cp2->vcc = _mm_movemask_epi8(temp);
+  cp2->vce = 0x00;
 #else
 #warning "Unimplemented function: RSPVCR (No SSE)."
 #endif
-
-  cp2->vcc = 0x0000;
-
-  for (i = 0; i < 8; i++) {
-    const signed short vs = vsData[i];
-    const signed short vt = vtData[i];
-    const int sn = (vs ^ vt) < 0;
-
-    if (sn) {
-      ge = (vt < 0);
-      le = (vs + vt < 0);
-      accLow[i] = le ? ~vt : vs;
-    }
-
-    else {
-      le = (vt < 0);
-      ge = (vs - vt >= 0);
-      accLow[i] = le ? vt : vs;
-    }
-
-    cp2->vcc |= (ge <<= (i + 8)) | (le <<= (i + 0));
-  }
-
-  memcpy(vd, accLow, sizeof(short) * 8);
-  _mm_store_si128((__m128i*) (cp2->vcolo.slices), _mm_setzero_si128());
-  _mm_store_si128((__m128i*) (cp2->vcohi.slices), _mm_setzero_si128());
-  cp2->vce = 0x00;
 }
 
 /* ============================================================================
