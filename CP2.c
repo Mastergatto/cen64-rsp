@@ -36,20 +36,21 @@
  * ========================================================================= */
 static __m128i
 RSPClampLowToVal(__m128i vaccLow, __m128i vaccMid, __m128i vaccHigh) {
-  __m128i setMask = _mm_cmpeq_epi16(_mm_setzero_si128(), _mm_setzero_si128());
-  __m128i negCheck, useValMask, negVal, posVal;
+  __m128i midSign, negCheck, negVal, posVal, useValMask, zero;
 
   /* Compute some common values ahead of time. */
-  negCheck = _mm_cmplt_epi16(vaccHigh, _mm_setzero_si128());
+  zero = _mm_xor_si128(vaccLow, vaccLow);
+  negCheck = _mm_cmplt_epi16(vaccHigh, zero);
+  midSign = _mm_srai_epi16(vaccMid, 15);
 
   /* If accmulator < 0, clamp to val if val != TMin. */
-  useValMask = _mm_and_si128(vaccHigh, _mm_srai_epi16(vaccMid, 15));
-  useValMask = _mm_cmpeq_epi16(useValMask, setMask);
-  negVal = _mm_and_si128(useValMask, vaccLow);
+  negVal = _mm_and_si128(negCheck, vaccHigh);
+  useValMask = _mm_and_si128(midSign, negVal);
+  negVal = _mm_and_si128(vaccLow, useValMask);
 
   /* Otherwise, clamp to ~0 if any high bits are set. */
-  useValMask = _mm_or_si128(vaccHigh, _mm_srai_epi16(vaccMid, 15));
-  useValMask = _mm_cmpeq_epi16(useValMask, _mm_setzero_si128());
+  useValMask = _mm_or_si128(vaccHigh,  midSign);
+  useValMask = _mm_cmpeq_epi16(useValMask, zero);
   posVal = _mm_and_si128(useValMask, vaccLow);
 
 #ifdef SSSE3_ONLY
@@ -69,7 +70,7 @@ uint16_t
 RSPGetVCO(const struct RSPCP2 *cp2) {
   __m128i vne = _mm_load_si128((__m128i*) (cp2->vcohi.slices));
   __m128i vco = _mm_load_si128((__m128i*) (cp2->vcolo.slices));
-  return (uint16_t) _mm_movemask_epi8(_mm_packs_epi16(vco, vne));
+  return _mm_movemask_epi8(_mm_packs_epi16(vco, vne));
 }
 #endif
 
@@ -342,56 +343,98 @@ RSPVCH(struct RSPCP2 *cp2, int16_t *vd,
   const int16_t *vsData, const int16_t *vtDataIn, unsigned element) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
-  uint16_t vco = 0x0000;
-  int16_t vtData[8];
-  int ge, le, neq;
-  unsigned i;
-
-  cp2->vcc = 0x0000;
-  cp2->vce = 0x00;
-
 #ifdef USE_SSE
   __m128i vtReg = _mm_load_si128((__m128i*) vtDataIn);
+  __m128i vsReg = _mm_load_si128((__m128i*) vsData);
   vtReg = RSPGetVectorOperands(vtReg, element);
-    _mm_store_si128((__m128i*) vtData, vtReg);
+
+  __m128i cmp1, cmp2, snAluOp, temp, temp2a, temp2s;
+  __m128i ge, le, neq, notSn, sn, vce, zero;
+
+  /* sn = (vs ^ vt) < 0 */
+  zero = _mm_xor_si128(vsReg, vsReg);
+  sn = _mm_xor_si128(vsReg, vtReg);
+  sn = _mm_cmplt_epi16(sn, zero);
+  notSn = _mm_cmpeq_epi16(sn, zero);
+
+  /* if ( sn) { snAluOp = (vs + vt); } */
+  /* if (!sn) { snAluOp = (vs - vt); } */
+  temp2a = _mm_add_epi16(vsReg, vtReg);
+  temp2s = _mm_sub_epi16(vsReg, vtReg);
+#ifdef SSSE3_ONLY
+  temp2a = _mm_and_si128(sn, temp2a);
+  temp2s = _mm_andnot_si128(sn, temp2s);
+  snAluOp = _mm_or_si128(temp2a, temp2s);
+#else
+  snAluOp = _mm_blendv_epi8(temp2s, temp2a, sn);
+#endif
+
+  /* Compute ge, le for each case. */
+  /* if ( sn) { ge = (vt < 0);       le = (vs + vt <= 0); */
+  /* if (!sn) { ge = (vs - vt >= 0); le = (vt < 0);       */
+  cmp1 = _mm_cmplt_epi16(vtReg, zero);
+  temp2a = _mm_cmpgt_epi16(snAluOp, zero);
+  temp2s = _mm_cmplt_epi16(snAluOp, zero);
+#if SSSE3_ONLY
+  temp2a = _mm_and_si128(sn, temp2a);
+  temp2s = _mm_andnot_si128(sn, temp2s);
+  cmp2 = _mm_or_si128(temp2a, temp2s);
+#else
+  cmp2 = _mm_blendv_epi8(temp2s, temp2a, sn);
+#endif
+  cmp2 = _mm_cmpeq_epi16(cmp2, zero);
+
+#ifdef SSSE3_ONLY
+  temp2a = _mm_and_si128(sn, cmp1);
+  temp2s = _mm_andnot_si128(sn, cmp2);
+  ge = _mm_or_si128(temp2a, temp2s);
+  temp2a = _mm_and_si128(sn, cmp2);
+  temp2s = _mm_andnot_si128(sn, cmp1);
+  le = _mm_or_si128(temp2a, temp2s);
+#else
+  ge = _mm_blendv_epi8(cmp2, cmp1, sn);
+  le = _mm_blendv_epi8(cmp1, cmp2, sn);
+#endif
+
+  /* Compute neq, vce for each case. */
+  /* if ( sn) { neq = (vs + vt == -1); vce |= neq;  neq ^= !(vs + vt == 0); } */
+  /* if (!sn) { neq = !(vs - vt == 0); vce |= 0x00;                         } */
+  temp = _mm_cmpeq_epi16(snAluOp, sn);
+  neq = _mm_xor_si128(temp, notSn);
+
+  temp = _mm_and_si128(neq, sn);
+  cp2->vce = _mm_movemask_epi8(_mm_packs_epi16(temp, temp)) & 0xFF;
+
+  temp = _mm_cmpeq_epi16(snAluOp, zero);
+  temp = _mm_cmpeq_epi16(temp, zero);
+  temp = _mm_and_si128(temp, sn);
+  neq = _mm_xor_si128(temp, neq);
+
+  /* Compute accLow for each case. */
+  /* if ( sn) { accLow = le ? -vt : vs; */
+  /* if (!sn) { accLow = ge ?  vt : vs; */
+  temp = _mm_xor_si128(vtReg, sn);
+  vtReg = _mm_sub_epi16(temp, sn);
+
+#ifdef SSSE3_ONLY
+  temp2a = _mm_and_si128(cmp2, vtReg);
+  temp2s = _mm_andnot_si128(cmp2, vsReg);
+  temp = _mm_or_si128(temp2a, temp2s);
+#else
+  temp = _mm_blendv_epi8(vsReg, vtReg, cmp2);
+#endif
+
+  /* Compute vco, vcc for each case. */
+  /* vcchi |=  ge; vcolo |= le;  */
+  /* vcohi |= neq; vcolo |= sn;  */
+  cp2->vcc = _mm_movemask_epi8(_mm_packs_epi16(le, ge)) & 0xFFFF;
+  _mm_store_si128((__m128i*) (cp2->vcolo.slices), sn);
+  _mm_store_si128((__m128i*) (cp2->vcohi.slices), neq);
+  _mm_store_si128((__m128i*) accLow, temp);
+  _mm_store_si128((__m128i*) vd, temp);
 #else
 #warning "Unimplemented function: RSPVCH (No SSE)."
 #endif
-
-  for (i = 0; i < 8; i++) {
-    int16_t vs = vsData[i];
-    int16_t vt = vtData[i];
-
-    /* sn = (unsigned short)(VS ^ VT) >> 15 */
-    int sn = (vs ^ vt) < 0;
-
-    if (sn) {
-      ge = (vt < 0);
-      le = (vs + vt <= 0);
-      neq = (vs + vt == -1);
-      cp2->vce |= neq << i;
-
-      /* !(x | y) = x ^ !(y), if (x & y) != 1 */
-      neq ^= !(vs + vt == 0);
-      accLow[i] = le ? -vt : vs;
-      vco |= (neq <<= (i + 0x8)) | (sn << (i + 0x0));
-    }
-
-    else {
-      le = (vt < 0);
-      ge = (vs - vt >= 0);
-      neq = !(vs - vt == 0);
-      cp2->vce |= 0x00 << i;
-
-      accLow[i] = ge ? vt : vs;
-      vco |= (neq <<= (i + 0x8)) | (sn << (i + 0x0));
-    }
-
-    cp2->vcc |=  (ge <<= (i + 0x8)) | (le <<= (i + 0x0));
-  }
-
-  memcpy(vd, accLow, sizeof(short) * 8);
-  RSPSetVCO(cp2, vco);
 }
 
 /* ============================================================================
