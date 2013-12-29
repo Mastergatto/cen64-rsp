@@ -63,6 +63,18 @@ RSPClampLowToVal(__m128i vaccLow, __m128i vaccMid, __m128i vaccHigh) {
 }
 
 /* ============================================================================
+ *  RSPGetVCC: Get VCC in the "old" format.
+ * ========================================================================= */
+#ifdef USE_SSE
+uint16_t
+RSPGetVCC(const struct RSPCP2 *cp2) {
+  __m128i vge = _mm_load_si128((__m128i*) (cp2->vcchi.slices));
+  __m128i vle = _mm_load_si128((__m128i*) (cp2->vcclo.slices));
+  return _mm_movemask_epi8(_mm_packs_epi16(vle, vge));
+}
+#endif
+
+/* ============================================================================
  *  RSPGetVCO: Get VCO in the "old" format.
  * ========================================================================= */
 #ifdef USE_SSE
@@ -132,6 +144,22 @@ RSPPackHi32to16(__m128i vectorLow, __m128i vectorHigh) {
   vectorHigh = _mm_srai_epi32(vectorHigh, 16);
   return _mm_packs_epi32(vectorLow, vectorHigh);
 }
+
+/* ============================================================================
+ *  RSPSetVCC: Set VCC given the "old" format.
+ * ========================================================================= */
+#ifdef USE_SSE
+void
+RSPSetVCC(struct RSPCP2 *cp2, uint16_t vcc) {
+  static const uint16_t lut[2] = {0x0000, 0xFFFFU};
+  unsigned i;
+
+  for (i = 0; i < 8; i++, vcc >>= 1) {
+    cp2->vcclo.slices[i] = lut[(vcc >> 0) & 1];
+    cp2->vcchi.slices[i] = lut[(vcc >> 8) & 1];
+  }
+}
+#endif
 
 /* ============================================================================
  *  RSPSetVCO: Set VCO given the "old" format.
@@ -388,7 +416,8 @@ RSPVCH(struct RSPCP2 *cp2, int16_t *vd,
   /* Compute vco, vcc for each case. */
   /* vcchi |=  ge; vcolo |= le;  */
   /* vcohi |= neq; vcolo |= sn;  */
-  cp2->vcc = _mm_movemask_epi8(_mm_packs_epi16(le, ge));
+  _mm_store_si128((__m128i*) (cp2->vcclo.slices), le);
+  _mm_store_si128((__m128i*) (cp2->vcchi.slices), ge);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), sn);
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), neq);
   _mm_store_si128((__m128i*) accLow, temp);
@@ -407,8 +436,9 @@ RSPVCL(struct RSPCP2 *cp2, int16_t *vd,
   int16_t *accLow = cp2->accumulatorLow.slices;
 
   uint16_t vco = RSPGetVCO(cp2);
-  int16_t vccOld = cp2->vcc;
+  int16_t vccOld = RSPGetVCC(cp2);
   int16_t vtData[8], vsData[8];
+  int16_t vcc = 0;
   int ge, le;
   unsigned i;
 
@@ -419,7 +449,6 @@ RSPVCL(struct RSPCP2 *cp2, int16_t *vd,
 #warning "Unimplemented function: RSPVCL (No SSE)."
 #endif
 
-  cp2->vcc = 0x0000;
   for (i = 0; i < 8; i++) {
     uint16_t vs = (unsigned short) vsData[i];
     uint16_t vt = (unsigned short) vtData[i];
@@ -452,9 +481,10 @@ RSPVCL(struct RSPCP2 *cp2, int16_t *vd,
       accLow[i] = ge ? vt : vs;
     }
 
-    cp2->vcc |= ge | le;
+    vcc |= ge | le;
   }
 
+  RSPSetVCC(cp2, vcc);
   memcpy(vd, accLow, sizeof(short) * 8);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), _mm_setzero_si128());
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), _mm_setzero_si128());
@@ -520,7 +550,8 @@ RSPVCR(struct RSPCP2 *cp2, int16_t *vd,
   temp = _mm_packs_epi16(le, ge);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), _mm_setzero_si128());
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), _mm_setzero_si128());
-  cp2->vcc = _mm_movemask_epi8(temp);
+  _mm_store_si128((__m128i*) (cp2->vcclo.slices), le);
+  _mm_store_si128((__m128i*) (cp2->vcchi.slices), ge);
   cp2->vce = 0x00;
 #else
 #warning "Unimplemented function: RSPVCR (No SSE)."
@@ -541,12 +572,12 @@ RSPVEQ(struct RSPCP2 *cp2, int16_t *vd,
   vne = _mm_cmpeq_epi16(vne, _mm_setzero_si128());
   __m128i vvcc = _mm_and_si128(equal, vne);
 
-  vvcc = _mm_packs_epi16(vvcc, vvcc);
-  cp2->vcc = _mm_movemask_epi8(vvcc) & 0xFF;
   _mm_store_si128((__m128i*) accLow, vtShuf);
   _mm_store_si128((__m128i*) vd, vtShuf);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), _mm_setzero_si128());
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), _mm_setzero_si128());
+  _mm_store_si128((__m128i*) (cp2->vcclo.slices), vvcc);
+  _mm_store_si128((__m128i*) (cp2->vcchi.slices), _mm_setzero_si128());
 #else
 #warning "Unimplemented function: RSPVEQ (No SSE)."
 #endif
@@ -563,9 +594,7 @@ RSPVGE(struct RSPCP2 *cp2, int16_t *vd,
 #ifdef USE_SSE
   __m128i vne = _mm_load_si128((__m128i*) (cp2->vcohi.slices));
   __m128i vco = _mm_load_si128((__m128i*) (cp2->vcolo.slices));
-
-  __m128i temp, equal, greaterEqual, vvcc, vdReg;
-  cp2->vcc = 0x0000;
+  __m128i temp, equal, greaterEqual, vdReg;
 
   /* equal = (~vco | ~vne) && (vs == vt) */
   temp = _mm_and_si128(vne, vco);
@@ -586,12 +615,12 @@ RSPVGE(struct RSPCP2 *cp2, int16_t *vd,
   vdReg = _mm_blendv_epi8(vtShuf, vsReg, greaterEqual);
 #endif
 
-  vvcc = _mm_packs_epi16(greaterEqual, greaterEqual);
-  cp2->vcc = _mm_movemask_epi8(vvcc) & 0xFF;
   _mm_store_si128((__m128i*) accLow, vdReg);
   _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), _mm_setzero_si128());
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), _mm_setzero_si128());
+  _mm_store_si128((__m128i*) (cp2->vcclo.slices), greaterEqual);
+  _mm_store_si128((__m128i*) (cp2->vcchi.slices), _mm_setzero_si128());
 #else
 #warning "Unimplemented function: RSPVGE (No SSE)."
 #endif
@@ -616,9 +645,7 @@ RSPVLT(struct RSPCP2 *cp2, int16_t *vd,
 #ifdef USE_SSE
   __m128i vne = _mm_load_si128((__m128i*) (cp2->vcohi.slices));
   __m128i vco = _mm_load_si128((__m128i*) (cp2->vcolo.slices));
-
-  __m128i temp, equal, lessthanEqual, vvcc, vdReg;
-  cp2->vcc = 0x0000;
+  __m128i temp, equal, lessthanEqual, vdReg;
 
   /* equal = (vco & vne) && (vs == vt) */
   temp = _mm_and_si128(vne, vco);
@@ -638,12 +665,12 @@ RSPVLT(struct RSPCP2 *cp2, int16_t *vd,
   vdReg = _mm_blendv_epi8(vtShuf, vsReg, lessthanEqual);
 #endif
 
-  vvcc = _mm_packs_epi16(lessthanEqual, lessthanEqual);
-  cp2->vcc = _mm_movemask_epi8(vvcc) & 0xFF;
   _mm_store_si128((__m128i*) accLow, vdReg);
   _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), _mm_setzero_si128());
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), _mm_setzero_si128());
+  _mm_store_si128((__m128i*) (cp2->vcclo.slices), lessthanEqual);
+  _mm_store_si128((__m128i*) (cp2->vcchi.slices), _mm_setzero_si128());
 #else
 #warning "Unimplemented function: RSPVLT (No SSE)."
 #endif
@@ -1085,20 +1112,22 @@ RSPVMRG(struct RSPCP2 *cp2, int16_t *vd,
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
-  int16_t vtData[8], vsData[8];
-  unsigned i;
-
 #ifdef USE_SSE
-  _mm_storeu_si128((__m128i*) vtData, vtShuf);
-  _mm_storeu_si128((__m128i*) vsData, vsReg);
+  __m128i mask = _mm_load_si128((__m128i*) (cp2->vcclo.slices));
+
+#ifdef SSSE3_ONLY
+  __m128i temp1 = _mm_and_si128(mask, vsReg);
+  __m128i temp2 = _mm_andnot_si128(mask, vtShuf);
+  __m128i vaccLow = _mm_or_si128(temp1, temp2);
+#else
+  __m128i vaccLow = _mm_blendv_epi8(vtShuf, vsReg, mask);
+#endif
+
+  _mm_store_si128((__m128i*) accLow, vaccLow);
+  _mm_store_si128((__m128i*) vd, vaccLow);
 #else
 #warning "Unimplemented function: RSPVMRG (No SSE)."
 #endif
-
-  for (i = 0; i < 8; i++)
-    accLow[i] = cp2->vcc & (0x0001 << i) ? vsData[i] : vtData[i];
-
-  memcpy(vd, accLow, sizeof(short) * 8);
 }
 
 /* ============================================================================
@@ -1345,12 +1374,12 @@ RSPVNE(struct RSPCP2 *cp2, int16_t *vd,
   notequal = _mm_cmpeq_epi16(notequal, _mm_setzero_si128());
   __m128i vvcc = _mm_or_si128(notequal, vne);
 
-  vvcc = _mm_packs_epi16(vvcc, vvcc);
-  cp2->vcc = _mm_movemask_epi8(vvcc) & 0xFF;
   _mm_store_si128((__m128i*) accLow, vsReg);
   _mm_store_si128((__m128i*) vd, vsReg);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), _mm_setzero_si128());
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), _mm_setzero_si128());
+  _mm_store_si128((__m128i*) (cp2->vcclo.slices), vvcc);
+  _mm_store_si128((__m128i*) (cp2->vcchi.slices), _mm_setzero_si128());
 #else
 #warning "Unimplemented function: RSPVNE (No SSE)."
 #endif
