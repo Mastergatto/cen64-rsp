@@ -71,7 +71,6 @@ CycleRSP(struct RSP *rsp) {
   bool ldStoreStall, ldUseStall;
   unsigned rsSource = GET_RS(rsp->pipeline.rdexLatch.iw);
   unsigned rtSource = GET_RT(rsp->pipeline.rdexLatch.iw);
-  unsigned rs, rt;
 
   /* Generate outputs for later stages. */ 
   struct RSPOpcode dfOpcode = rsp->pipeline.exdfLatch.opcode;

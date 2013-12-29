@@ -12,6 +12,14 @@
 #define __RSP__OPCODES_H__
 #include "Common.h"
 
+#ifdef USE_SSE
+#ifdef SSSE3_ONLY
+#include <tmmintrin.h>
+#else
+#include <smmintrin.h>
+#endif
+#endif
+
 enum RSPOpcodeID {
 #define X(op) RSP_OPCODE_##op,
 #include "ScalarOpcodes.md"
@@ -35,7 +43,7 @@ struct RSPCP2;
 #undef X
 
 #define X(op) void RSP##op( \
-  struct RSPCP2 *, int16_t *, const int16_t *, const int16_t *, unsigned);
+  struct RSPCP2 *, int16_t *, __m128i, __m128i, __m128i);
 #include "VectorOpcodes.md"
 #undef X
 
@@ -43,7 +51,7 @@ typedef void (*const RSPScalarFunction)
   (struct RSP *, uint32_t, uint32_t);
 
 typedef void (*const RSPVectorFunction)
-  (struct RSPCP2 *, int16_t *, const int16_t *, const int16_t *, unsigned);
+  (struct RSPCP2 *, int16_t *, __m128i, __m128i, __m128i);
 
 extern const RSPScalarFunction RSPScalarFunctionTable[NUM_RSP_SCALAR_OPCODES];
 extern const RSPVectorFunction RSPVectorFunctionTable[NUM_RSP_VECTOR_OPCODES];

@@ -1243,6 +1243,7 @@ RSPEXStage(struct RSP *rsp,
   rsp->pipeline.counts[rdexLatch->opcode.id]++;
 #endif
 
-  RSPScalarFunctionTable[rdexLatch->opcode.id](rsp, rs, rt);
+  if (rdexLatch->opcode.id != RSP_OPCODE_INV)
+    RSPScalarFunctionTable[rdexLatch->opcode.id](rsp, rs, rt);
 }
 
