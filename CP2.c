@@ -756,8 +756,7 @@ RSPVMACF(struct RSPCP2 *cp2, int16_t *vd,
 
   /* Clamp the accumulator and write it all out. */
   vdReg = _mm_packs_epi32(vaccLow, vaccHigh);
-  vaccMid = RSPPackLo32to16(vaccLow, vaccHigh);
-  vaccHigh = RSPPackHi32to16(vaccLow, vaccHigh);
+  RSPPack32to16(vaccLow, vaccHigh, &vaccMid, &vaccHigh);
 
   _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accMid, vaccMid);
@@ -839,8 +838,7 @@ RSPVMACU(struct RSPCP2 *cp2, int16_t *vd,
   vaccHigh = _mm_add_epi32(vdRegHi, vaccHigh);
 
   /* Clamp the accumulator and write it all out. */
-  vaccMid = RSPPackLo32to16(vaccLow, vaccHigh);
-  vaccHigh = RSPPackHi32to16(vaccLow, vaccHigh);
+  RSPPack32to16(vaccLow, vaccHigh, &vaccMid, &vaccHigh);
   _mm_store_si128((__m128i*) accMid, vaccMid);
   _mm_store_si128((__m128i*) accHigh, vaccHigh);
 #else
@@ -897,8 +895,7 @@ RSPVMADH(struct RSPCP2 *cp2, int16_t *vd,
 
   /* Pack the accumulator and result back up. */
   vdReg = _mm_packs_epi32(vaccLow, vaccHigh);
-  vaccMid = RSPPackLo32to16(vaccLow, vaccHigh);
-  vaccHigh = RSPPackHi32to16(vaccLow, vaccHigh);
+  RSPPack32to16(vaccLow, vaccHigh, &vaccMid, &vaccHigh);
 
   _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accMid, vaccMid);
@@ -949,8 +946,7 @@ RSPVMADL(struct RSPCP2 *cp2, int16_t *vd,
   vaccHigh = _mm_add_epi32(vdRegHi, vaccHigh);
 
   /* Clamp the accumulator and write it all out. */
-  vaccMid = RSPPackLo32to16(vaccLow, vaccHigh);
-  vaccHigh = RSPPackHi32to16(vaccLow, vaccHigh);
+  RSPPack32to16(vaccLow, vaccHigh, &vaccMid, &vaccHigh);
   vdReg = RSPClampLowToVal(vdReg, vaccMid, vaccHigh);
 
   _mm_store_si128((__m128i*) vd, vdReg);
@@ -1020,8 +1016,7 @@ RSPVMADM(struct RSPCP2 *cp2, int16_t *vd,
 
   /* Clamp the accumulator and write it all out. */
   vdReg = _mm_packs_epi32(vaccLow, vaccHigh);
-  vaccMid = RSPPackLo32to16(vaccLow, vaccHigh);
-  vaccHigh = RSPPackHi32to16(vaccLow, vaccHigh);
+  RSPPack32to16(vaccLow, vaccHigh, &vaccMid, &vaccHigh);
 
   _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accMid, vaccMid);
@@ -1090,8 +1085,7 @@ RSPVMADN(struct RSPCP2 *cp2, int16_t *vd,
   vaccHigh = _mm_add_epi32(vdRegHi, vaccHigh);
 
   /* Clamp the accumulator and write it all out. */
-  vaccMid = RSPPackLo32to16(vaccLow, vaccHigh);
-  vaccHigh = RSPPackHi32to16(vaccLow, vaccHigh);
+  RSPPack32to16(vaccLow, vaccHigh, &vaccMid, &vaccHigh);
   vdReg = RSPClampLowToVal(vdReg, vaccMid, vaccHigh);
 
   _mm_store_si128((__m128i*) vd, vdReg);
@@ -1168,8 +1162,7 @@ RSPVMUDH(struct RSPCP2 *cp2, int16_t *vd,
 
   /* Pack the accumulator and result back up. */
   vdReg = _mm_packs_epi32(vaccLow, vaccHigh);
-  vaccMid = RSPPackLo32to16(vaccLow, vaccHigh);
-  vaccHigh = RSPPackHi32to16(vaccLow, vaccHigh);
+  RSPPack32to16(vaccLow, vaccHigh, &vaccMid, &vaccHigh);
 
   _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accLow, _mm_setzero_si128());
@@ -1198,7 +1191,6 @@ RSPVMUDL(struct RSPCP2 *cp2, int16_t *vd,
   unpackHi = _mm_mulhi_epu16(vsReg, vtShuf);
   loProduct = _mm_unpacklo_epi16(unpackLo, unpackHi);
   hiProduct = _mm_unpackhi_epi16(unpackLo, unpackHi);
-
   vdReg = RSPPackHi32to16(loProduct, hiProduct);
 
   _mm_store_si128((__m128i*) vd, vdReg);
@@ -1231,8 +1223,7 @@ RSPVMUDM(struct RSPCP2 *cp2, int16_t *vd,
   /* Begin accumulating the products. */
   loProduct = _mm_mullo_epi32(vsRegLo, vtRegLo);
   hiProduct = _mm_mullo_epi32(vsRegHi, vtRegHi);
-  vaccLow = RSPPackLo32to16(loProduct, hiProduct);
-  vaccHigh = RSPPackHi32to16(loProduct, hiProduct);
+  RSPPack32to16(loProduct, hiProduct, &vaccLow, &vaccHigh);
 
   loProduct = _mm_cmplt_epi32(loProduct, _mm_setzero_si128());
   hiProduct = _mm_cmplt_epi32(hiProduct, _mm_setzero_si128());
@@ -1268,8 +1259,7 @@ RSPVMUDN(struct RSPCP2 *cp2, int16_t *vd,
   /* Begin accumulating the products. */
   loProduct = _mm_mullo_epi32(vsRegLo, vtRegLo);
   hiProduct = _mm_mullo_epi32(vsRegHi, vtRegHi);
-  vaccLow = RSPPackLo32to16(loProduct, hiProduct);
-  vaccHigh = RSPPackHi32to16(loProduct, hiProduct);
+  RSPPack32to16(loProduct, hiProduct, &vaccLow, &vaccHigh);
   vdReg = _mm_cmplt_epi16(vaccHigh, _mm_setzero_si128());
 
   _mm_store_si128((__m128i*) vd, vaccLow);
