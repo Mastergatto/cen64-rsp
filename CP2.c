@@ -1282,7 +1282,7 @@ RSPVMUDN(struct RSPCP2 *cp2, int16_t *vd,
 }
 
 /* ============================================================================
- *  Instruction: VMULF (Vector Multiply of Signed Fractions)
+ *  Instruction: VMULF (Vector Multiply of Signed Fractions).
  * ========================================================================= */
 void
 RSPVMULF(struct RSPCP2 *cp2, int16_t *vd,
@@ -1341,7 +1341,7 @@ RSPVMULQ(struct RSPCP2 *unused(cp2), int16_t *unused(vd),
 }
 
 /* ============================================================================
- *  Instruction: VMULU (Vector Multiply of Unsigned Fractions)
+ *  Instruction: VMULU (Vector Multiply of Unsigned Fractions).
  * ========================================================================= */
 void
 RSPVMULU(struct RSPCP2 *cp2, int16_t *vd,
@@ -1350,27 +1350,46 @@ RSPVMULU(struct RSPCP2 *cp2, int16_t *vd,
   int16_t *accMid = cp2->accumulatorMid.slices;
   int16_t *accHigh = cp2->accumulatorHigh.slices;
 
-  int16_t vtData[8], vsData[8];
-  unsigned i;
-
 #ifdef USE_SSE
-  _mm_storeu_si128((__m128i*) vtData, vtShuf);
-  _mm_storeu_si128((__m128i*) vsData, vsReg);
+  __m128i lowProduct, highProduct, unpackLow, unpackHigh;
+  __m128i temp, vaccLow, vaccMid, vaccHigh, vdReg, zero;
+  zero = _mm_setzero_si128();
+
+  /* Compute 64-bit signed product. */
+  unpackLow = _mm_mullo_epi16(vsReg, vtShuf);
+  unpackHigh = _mm_mulhi_epi16(vsReg, vtShuf);
+  lowProduct = _mm_unpacklo_epi16(unpackLow, unpackHigh);
+  highProduct = _mm_unpackhi_epi16(unpackLow, unpackHigh);
+  lowProduct = _mm_slli_epi32(lowProduct, 1);
+  highProduct = _mm_slli_epi32(highProduct, 1);
+
+  /* Add the rounding value. */
+  temp = _mm_set1_epi32(0x00008000U);
+  lowProduct = _mm_add_epi32(lowProduct, temp);
+  highProduct = _mm_add_epi32(highProduct, temp);
+
+  /* Compute the accmulator, paying attention to overflow. */
+  RSPPack32to16(lowProduct, highProduct, &vaccLow, &vaccMid);
+  vaccHigh = _mm_cmplt_epi16(vaccMid, zero);
+  temp = _mm_cmpeq_epi16(vsReg, vtShuf);
+  temp = _mm_cmpeq_epi16(temp, zero);
+  vaccHigh = _mm_and_si128(vaccHigh, temp);
+
+  /* Compute the result by clamping the middle word. */
+  lowProduct = _mm_unpacklo_epi16(vaccMid, vaccHigh);
+  highProduct = _mm_unpackhi_epi16(vaccMid, vaccHigh);
+  vdReg = _mm_packs_epi32(lowProduct, highProduct);
+  temp = _mm_cmpgt_epi16(vdReg, zero);
+  vdReg = _mm_and_si128(vdReg, temp);
+
+  /* Write everything out. */
+  _mm_store_si128((__m128i*) accLow, vaccLow);
+  _mm_store_si128((__m128i*) accMid, vaccMid);
+  _mm_store_si128((__m128i*) accHigh, vaccHigh);
+  _mm_store_si128((__m128i*) vd, vdReg);
 #else
-#warning "Unimplemented function: RSPVMULU (No SSE)."
+  debug("Unimplemented function: VMULU.");
 #endif
-
-  for (i = 0; i < 8; i++) {
-    signed long long int thing = (vsData[i] * vtData[i] << 1) + 0x8000;
-
-    accLow[i] = thing;
-    accMid[i] = thing >> 16;
-    accHigh[i] = thing >> 32;
-
-    vd[i] = accMid[i];
-    vd[i] |= vd[i] >> 15;
-    vd[i] = (thing < 0) ? 0 : vd[i];
-  }
 }
 
 /* ============================================================================
