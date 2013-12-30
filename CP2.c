@@ -161,35 +161,46 @@ RSPPack32to16(__m128i low, __m128i high, __m128i *lowOut, __m128i *highOut) {
   *highOut = _mm_unpackhi_epi64(low, high);
 }
 
+#ifdef USE_SSE
+static const uint16_t setLUT[16][4] align(64) = {
+  {0x0000U, 0x0000U, 0x0000U, 0x0000},
+  {0xFFFFU, 0x0000U, 0x0000U, 0x0000},
+  {0x0000U, 0xFFFFU, 0x0000U, 0x0000},
+  {0xFFFFU, 0xFFFFU, 0x0000U, 0x0000},
+  {0x0000U, 0x0000U, 0xFFFFU, 0x0000},
+  {0xFFFFU, 0x0000U, 0xFFFFU, 0x0000},
+  {0x0000U, 0xFFFFU, 0xFFFFU, 0x0000},
+  {0xFFFFU, 0xFFFFU, 0xFFFFU, 0x0000},
+  {0x0000U, 0x0000U, 0x0000U, 0xFFFF},
+  {0xFFFFU, 0x0000U, 0x0000U, 0xFFFF},
+  {0x0000U, 0xFFFFU, 0x0000U, 0xFFFF},
+  {0xFFFFU, 0xFFFFU, 0x0000U, 0xFFFF},
+  {0x0000U, 0x0000U, 0xFFFFU, 0xFFFF},
+  {0xFFFFU, 0x0000U, 0xFFFFU, 0xFFFF},
+  {0x0000U, 0xFFFFU, 0xFFFFU, 0xFFFF},
+  {0xFFFFU, 0xFFFFU, 0xFFFFU, 0xFFFF},
+};
+
 /* ============================================================================
  *  RSPSetVCC: Set VCC given the "old" format.
  * ========================================================================= */
-#ifdef USE_SSE
 void
 RSPSetVCC(struct RSPCP2 *cp2, uint16_t vcc) {
-  static const uint16_t lut[2] = {0x0000, 0xFFFFU};
-  unsigned i;
-
-  for (i = 0; i < 8; i++, vcc >>= 1) {
-    cp2->vcclo.slices[i] = lut[(vcc >> 0) & 1];
-    cp2->vcchi.slices[i] = lut[(vcc >> 8) & 1];
-  }
+  memcpy(cp2->vcclo.slices + 0, setLUT[(vcc >>  0) & 0xF], sizeof(*setLUT));
+  memcpy(cp2->vcclo.slices + 4, setLUT[(vcc >>  4) & 0xF], sizeof(*setLUT));
+  memcpy(cp2->vcchi.slices + 0, setLUT[(vcc >>  8) & 0xF], sizeof(*setLUT));
+  memcpy(cp2->vcchi.slices + 4, setLUT[(vcc >> 12) & 0xF], sizeof(*setLUT));
 }
-#endif
 
 /* ============================================================================
  *  RSPSetVCO: Set VCO given the "old" format.
  * ========================================================================= */
-#ifdef USE_SSE
 void
 RSPSetVCO(struct RSPCP2 *cp2, uint16_t vco) {
-  static const uint16_t lut[2] = {0x0000, 0xFFFFU};
-  unsigned i;
-
-  for (i = 0; i < 8; i++, vco >>= 1) {
-    cp2->vcolo.slices[i] = lut[(vco >> 0) & 1];
-    cp2->vcohi.slices[i] = lut[(vco >> 8) & 1];
-  }
+  memcpy(cp2->vcolo.slices + 0, setLUT[(vco >>  0) & 0xF], sizeof(*setLUT));
+  memcpy(cp2->vcolo.slices + 4, setLUT[(vco >>  4) & 0xF], sizeof(*setLUT));
+  memcpy(cp2->vcohi.slices + 0, setLUT[(vco >>  8) & 0xF], sizeof(*setLUT));
+  memcpy(cp2->vcohi.slices + 4, setLUT[(vco >> 12) & 0xF], sizeof(*setLUT));
 }
 #endif
 
@@ -217,19 +228,19 @@ RSPZeroExtend16to32(__m128i source, __m128i *vectorLow, __m128i *vectorHigh) {
  * ========================================================================= */
 static __m128i
 _mm_nand_si128(__m128i a, __m128i b) {
-  __m128i mask = _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128());
+  __m128i mask = _mm_cmpeq_epi8(a, a);
   return _mm_xor_si128(_mm_and_si128(a, b), mask);
 }
 
 static __m128i
 _mm_nor_si128(__m128i a, __m128i b) {
-  __m128i mask = _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128());
+  __m128i mask = _mm_cmpeq_epi8(a, a);
   return _mm_xor_si128(_mm_or_si128(a, b), mask);
 }
 
 static __m128i
 _mm_nxor_si128(__m128i a, __m128i b) {
-  __m128i mask = _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128());
+  __m128i mask = _mm_cmpeq_epi8(a, a);
   return _mm_xor_si128(_mm_xor_si128(a, b), mask);
 }
 
