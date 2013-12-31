@@ -12,6 +12,12 @@
 #include "Decoder.h"
 #include "Opcodes.h"
 
+#ifdef __cplusplus
+#include <cstring>
+#else
+#include <string.h>
+#endif
+
 /* ============================================================================
  *  Escaped opcode table: Special.
  *
@@ -311,8 +317,8 @@ static const struct RSPOpcodeEscape EscapeTable[64] = {
 const struct RSPOpcode*
 RSPDecodeInstruction(uint32_t iw) {
   const struct RSPOpcodeEscape *escape = &EscapeTable[iw >> 26];
-  uint8_t index = iw >> escape->shift & escape->mask;
-  return &escape->table[index];
+  uint32_t index = iw >> escape->shift & escape->mask;
+  return escape->table + index;
 }
 
 /* ============================================================================
@@ -321,7 +327,7 @@ RSPDecodeInstruction(uint32_t iw) {
  * ========================================================================= */
 const struct RSPVOpcode*
 RSPDecodeVectorInstruction(uint32_t iw) {
-  return &COP2VectorOpcodeTable[iw & 0x3F];
+  return COP2VectorOpcodeTable + (iw & 0x3F);
 }
 
 /* ============================================================================
@@ -329,7 +335,7 @@ RSPDecodeVectorInstruction(uint32_t iw) {
  * ========================================================================= */
 void
 RSPInvalidateOpcode(struct RSPOpcode *opcode) {
-  *opcode = OpcodeTable[0];
+  memset(opcode, 0, sizeof(*opcode));
 }
 
 /* ============================================================================
@@ -337,6 +343,6 @@ RSPInvalidateOpcode(struct RSPOpcode *opcode) {
  * ========================================================================= */
 void
 RSPInvalidateVectorOpcode(struct RSPVOpcode *opcode) {
-  *opcode = COP2VectorOpcodeTable[63];
+  memset(opcode, 0, sizeof(*opcode));
 }
 
