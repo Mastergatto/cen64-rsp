@@ -1222,28 +1222,32 @@ void
 RSPEXStage(struct RSP *rsp,
   unsigned rsForwardingRegister, unsigned rtForwardingRegister) {
   const struct RSPRDEXLatch *rdexLatch = &rsp->pipeline.rdexLatch;
-  const struct RSPDFWBLatch *dfwbLatch = &rsp->pipeline.dfwbLatch;
   struct RSPEXDFLatch *exdfLatch = &rsp->pipeline.exdfLatch;
-  uint32_t rs, rt, temp = rsp->regs[dfwbLatch->result.dest];
 
   /* Always invalidate results. */
   exdfLatch->result.dest = 0;
-  rsp->didBranch = 0;
 
-  /* Forward results from DC/WB into the register file (RF). */
-  /* Copy/restore value to prevent the need for branches. */
-  rsp->regs[dfwbLatch->result.dest] = dfwbLatch->result.data;
-  rsp->regs[RSP_REGISTER_ZERO] = 0;
+  /* Don't execute anything if decode killed us. */
+  if (rdexLatch->opcode.id != RSP_OPCODE_INV) {
+    const struct RSPDFWBLatch *dfwbLatch = &rsp->pipeline.dfwbLatch;
+    uint32_t rs, rt, temp = rsp->regs[dfwbLatch->result.dest];
 
-  rs = rsp->regs[rsForwardingRegister];
-  rt = rsp->regs[rtForwardingRegister];
-  rsp->regs[dfwbLatch->result.dest] = temp;
+    rsp->didBranch = 0;
+
+    /* Forward results from DC/WB into the register file (RF). */
+    /* Copy/restore value to prevent the need for branches. */
+    rsp->regs[dfwbLatch->result.dest] = dfwbLatch->result.data;
+    rsp->regs[RSP_REGISTER_ZERO] = 0;
+
+    rs = rsp->regs[rsForwardingRegister];
+    rt = rsp->regs[rtForwardingRegister];
+    rsp->regs[dfwbLatch->result.dest] = temp;
+
+    RSPScalarFunctionTable[rdexLatch->opcode.id](rsp, rs, rt);
+  }
 
 #ifndef NDEBUG
   rsp->pipeline.counts[rdexLatch->opcode.id]++;
 #endif
-
-  if (rdexLatch->opcode.id != RSP_OPCODE_INV)
-    RSPScalarFunctionTable[rdexLatch->opcode.id](rsp, rs, rt);
 }
 

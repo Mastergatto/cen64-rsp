@@ -1907,18 +1907,17 @@ RSPInitCP2(struct RSPCP2 *cp2) {
  * ========================================================================= */
 void
 RSPCycleCP2(struct RSPCP2 *cp2) {
-  uint32_t iw = cp2->iw;
-  unsigned vtRegister = iw >> 16 & 0x1F;
-  unsigned vsRegister = iw >> 11 & 0x1F;
-  unsigned vdRegister = iw >> 6 & 0x1F;
-
   cp2->locked[cp2->accStageDest] = false;     /* "WB" */
   cp2->accStageDest = cp2->mulStageDest;      /* "DF" */
   cp2->mulStageDest = 0;
 
   if (cp2->opcode.id != RSP_OPCODE_VINV) {
-    int16_t *vd = cp2->regs[vdRegister].slices;
+    uint32_t iw = cp2->iw;
+    unsigned vtRegister = iw >> 16 & 0x1F;
+    unsigned vsRegister = iw >> 11 & 0x1F;
+    unsigned vdRegister = iw >> 6 & 0x1F;
 
+    int16_t *vd = cp2->regs[vdRegister].slices;
     __m128i vt = _mm_load_si128((__m128i*) (cp2->regs[vtRegister].slices));
     __m128i vs = _mm_load_si128((__m128i*) (cp2->regs[vsRegister].slices));
     __m128i vtShuf = RSPGetVectorOperands(vt, iw >> 21 & 0xF);
@@ -1926,8 +1925,6 @@ RSPCycleCP2(struct RSPCP2 *cp2) {
     RSPVectorFunctionTable[cp2->opcode.id](cp2, vd, vs, vt, vtShuf);
     cp2->mulStageDest = (vd - cp2->regs[0].slices) >> 3;
   }
-
-  assert(cp2->mulStageDest >= 0 && cp2->mulStageDest < 32);
 
 #ifndef NDEBUG
   cp2->counts[cp2->opcode.id]++;
