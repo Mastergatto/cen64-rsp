@@ -75,6 +75,17 @@ RSPGetVCC(const struct RSPCP2 *cp2) {
 #endif
 
 /* ============================================================================
+ *  RSPGetVCE: Get VCE in the "old" format.
+ * ========================================================================= */
+#ifdef USE_SSE
+uint8_t
+RSPGetVCE(const struct RSPCP2 *cp2) {
+  __m128i vce = _mm_load_si128((__m128i*) (cp2->vce.slices));
+  return _mm_movemask_epi8(_mm_packs_epi16(vce, vce));
+}
+#endif
+
+/* ============================================================================
  *  RSPGetVCO: Get VCO in the "old" format.
  * ========================================================================= */
 #ifdef USE_SSE
@@ -190,6 +201,15 @@ RSPSetVCC(struct RSPCP2 *cp2, uint16_t vcc) {
   memcpy(cp2->vcclo.slices + 4, setLUT[(vcc >>  4) & 0xF], sizeof(*setLUT));
   memcpy(cp2->vcchi.slices + 0, setLUT[(vcc >>  8) & 0xF], sizeof(*setLUT));
   memcpy(cp2->vcchi.slices + 4, setLUT[(vcc >> 12) & 0xF], sizeof(*setLUT));
+}
+
+/* ============================================================================
+ *  RSPSetVCE: Set VCE given the "old" format.
+ * ========================================================================= */
+void
+RSPSetVCE(struct RSPCP2 *cp2, uint8_t vce) {
+  memcpy(cp2->vce.slices + 0, setLUT[(vce >>  0) & 0xF], sizeof(*setLUT));
+  memcpy(cp2->vce.slices + 4, setLUT[(vce >>  4) & 0xF], sizeof(*setLUT));
 }
 
 /* ============================================================================
@@ -423,8 +443,7 @@ RSPVCH(struct RSPCP2 *cp2, int16_t *vd,
   /* if (!sn) { neq = !(vs - vt == 0); vce |= 0x00;                         } */
   temp = _mm_cmpeq_epi16(snAluOp, sn);
   temp = _mm_and_si128(temp, sn);
-  temp = _mm_packs_epi16(temp, temp);
-  cp2->vce = _mm_movemask_epi8(temp);
+  _mm_store_si128((__m128i*) cp2->vce.slices, temp);
 
   temp = _mm_cmpeq_epi16(snAluOp, zero);
   neq = _mm_cmpeq_epi16(temp, zero);
@@ -462,6 +481,7 @@ RSPVCL(struct RSPCP2 *cp2, int16_t *vd,
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
+  uint8_t vce = RSPGetVCE(cp2);
   uint16_t vco = RSPGetVCO(cp2);
   int16_t vccOld = RSPGetVCC(cp2);
   int16_t vtData[8], vsData[8];
@@ -488,7 +508,7 @@ RSPVCL(struct RSPCP2 *cp2, int16_t *vd,
     if (sn) {
       if (eq) {
         int sum = vs + vt;
-        int ce = (cp2->vce >> i) & 0x01;
+        int ce = (vce >> i) & 0x01;
         int lz = ((sum & 0x0000FFFF) == 0x00000000);
         int uz = ((sum & 0xFFFF0000) == 0x00000000);
 
@@ -515,7 +535,7 @@ RSPVCL(struct RSPCP2 *cp2, int16_t *vd,
   memcpy(vd, accLow, sizeof(short) * 8);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), _mm_setzero_si128());
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), _mm_setzero_si128());
-  cp2->vce = 0x00;
+  _mm_store_si128((__m128i*) (cp2->vce.slices), _mm_setzero_si128());
 }
 
 /* ============================================================================
@@ -575,11 +595,11 @@ RSPVCR(struct RSPCP2 *cp2, int16_t *vd,
   _mm_store_si128((__m128i*) vd, temp);
 
   temp = _mm_packs_epi16(le, ge);
-  _mm_store_si128((__m128i*) (cp2->vcolo.slices), _mm_setzero_si128());
-  _mm_store_si128((__m128i*) (cp2->vcohi.slices), _mm_setzero_si128());
+  _mm_store_si128((__m128i*) (cp2->vcolo.slices), zero);
+  _mm_store_si128((__m128i*) (cp2->vcohi.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcclo.slices), le);
   _mm_store_si128((__m128i*) (cp2->vcchi.slices), ge);
-  cp2->vce = 0x00;
+  _mm_store_si128((__m128i*) (cp2->vce.slices), zero);
 #else
 #warning "Unimplemented function: RSPVCR (No SSE)."
 #endif

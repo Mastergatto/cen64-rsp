@@ -50,8 +50,7 @@ struct RSPCP2 {
   struct RSPVector vcolo;
   struct RSPVector vcchi;
   struct RSPVector vcclo;
-
-  uint8_t  vce; /* TODO: Remove. */
+  struct RSPVector vce;
 
   /* Having a larger array than necessary allows us to eliminate */
   /* a costly branch in the writeback stage every cycle. */
@@ -85,8 +84,10 @@ void RSPInitCP2(struct RSPCP2 *);
 
 #ifdef USE_SSE
 uint16_t RSPGetVCC(const struct RSPCP2 *);
+uint8_t RSPGetVCE(const struct RSPCP2 *);
 uint16_t RSPGetVCO(const struct RSPCP2 *);
 void RSPSetVCC(struct RSPCP2 *, uint16_t);
+void RSPSetVCE(struct RSPCP2 *, uint8_t);
 void RSPSetVCO(struct RSPCP2 *, uint16_t);
 #endif
 

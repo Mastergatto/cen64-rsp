@@ -259,8 +259,8 @@ RSPCFC2(struct RSP *rsp, uint32_t unused(rs), uint32_t unused(rt)) {
   switch (source & 3) {
     case 0: data = (int) ((short) RSPGetVCO(&rsp->cp2)); break;
     case 1: data = (int) ((short) RSPGetVCC(&rsp->cp2)); break;
-    case 2: data = rsp->cp2.vce; break;
-    case 3: data = rsp->cp2.vce; break;
+    case 2: data = RSPGetVCE(&rsp->cp2); break;
+    case 3: data = RSPGetVCE(&rsp->cp2); break;
   }
 
   exdfLatch->result.data = data;
@@ -278,8 +278,8 @@ RSPCTC2(struct RSP *rsp, uint32_t unused(rs), uint32_t rt) {
   switch (dest & 3) {
     case 0: RSPSetVCO(&rsp->cp2, rt); break;
     case 1: RSPSetVCC(&rsp->cp2, rt); break;
-    case 2: rsp->cp2.vce = rt; break;
-    case 3: rsp->cp2.vce = rt; break;
+    case 2: RSPSetVCE(&rsp->cp2, rt); break;
+    case 3: RSPSetVCE(&rsp->cp2, rt); break;
   }
 }
 
