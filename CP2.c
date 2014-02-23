@@ -35,11 +35,11 @@
  *  RSPClampLowToVal: Clamps the low word of the accumulator.
  * ========================================================================= */
 static __m128i
-RSPClampLowToVal(__m128i vaccLow, __m128i vaccMid, __m128i vaccHigh) {
-  __m128i midSign, negCheck, negVal, posVal, useValMask, zero;
+RSPClampLowToVal(__m128i vaccLow,
+  __m128i vaccMid, __m128i vaccHigh, __m128i zero) {
+  __m128i midSign, negCheck, negVal, posVal, useValMask;
 
   /* Compute some common values ahead of time. */
-  zero = _mm_xor_si128(vaccLow, vaccLow);
   negCheck = _mm_cmplt_epi16(vaccHigh, zero);
   midSign = _mm_srai_epi16(vaccMid, 15);
 
@@ -132,7 +132,7 @@ RSPGetVectorOperands(__m128i vt, unsigned element) {
  *  TODO: 5 SSE2 operations is kind of expensive just to truncate values?
  * ========================================================================= */
 static __m128i
-RSPPackLo32to16(__m128i vectorLow, __m128i vectorHigh) {
+RSPPackLo32to16(__m128i vectorLow, __m128i vectorHigh, __m128i zero) {
 #ifdef SSSE3_ONLY
   vectorLow = _mm_slli_epi32(vectorLow, 16);
   vectorHigh = _mm_slli_epi32(vectorHigh, 16);
@@ -140,8 +140,8 @@ RSPPackLo32to16(__m128i vectorLow, __m128i vectorHigh) {
   vectorHigh = _mm_srai_epi32(vectorHigh, 16);
   return _mm_packs_epi32(vectorLow, vectorHigh);
 #else
-  vectorLow = _mm_blend_epi16(vectorLow, _mm_setzero_si128(), 0xAA);
-  vectorHigh = _mm_blend_epi16(vectorHigh, _mm_setzero_si128(), 0xAA);
+  vectorLow = _mm_blend_epi16(vectorLow, zero, 0xAA);
+  vectorHigh = _mm_blend_epi16(vectorHigh, zero, 0xAA);
   return _mm_packus_epi32(vectorLow, vectorHigh);
 #endif
 }
@@ -238,9 +238,10 @@ RSPSignExtend16to32(__m128i source, __m128i *vectorLow, __m128i *vectorHigh) {
  *  RSPZeroExtend16to32: Zero-extend 16-bit slices to 32-bit slices.
  * ========================================================================= */
 static void
-RSPZeroExtend16to32(__m128i source, __m128i *vectorLow, __m128i *vectorHigh) {
-  *vectorHigh = _mm_unpackhi_epi16(source, _mm_setzero_si128());
-  *vectorLow = _mm_unpacklo_epi16(source, _mm_setzero_si128());
+RSPZeroExtend16to32(__m128i source,
+  __m128i *vectorLow, __m128i *vectorHigh, __m128i zero) {
+  *vectorHigh = _mm_unpackhi_epi16(source, zero);
+  *vectorLow = _mm_unpacklo_epi16(source, zero);
 }
 
 /* ============================================================================
@@ -291,7 +292,7 @@ _mm_mullo_epi32(__m128i a, __m128i b) {
  * ========================================================================= */
 void
 RSPVABS(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
@@ -299,9 +300,9 @@ RSPVABS(struct RSPCP2 *cp2, int16_t *vd,
   vdReg = _mm_sign_epi16(vtShuf, vsReg);
 
   /* _mm_sign_epi16 will not fixup INT16_MIN; the RSP will! */
-  resultLessThan = _mm_cmplt_epi16(vdReg, _mm_setzero_si128());
-  signLessThan = _mm_cmplt_epi16(vsReg, _mm_setzero_si128());
-  valLessThan = _mm_cmplt_epi16(vtShuf, _mm_setzero_si128());
+  resultLessThan = _mm_cmplt_epi16(vdReg, zero);
+  signLessThan = _mm_cmplt_epi16(vsReg, zero);
+  valLessThan = _mm_cmplt_epi16(vtShuf, zero);
 
   valLessThan = _mm_and_si128(valLessThan, signLessThan);
   resultLessThan = _mm_and_si128(valLessThan, resultLessThan);
@@ -319,7 +320,7 @@ RSPVABS(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVADD(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
@@ -342,8 +343,8 @@ RSPVADD(struct RSPCP2 *cp2, int16_t *vd,
 
   _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accLow, vaccLow);
-  _mm_store_si128((__m128i*) (cp2->vcolo.slices), _mm_setzero_si128());
-  _mm_store_si128((__m128i*) (cp2->vcohi.slices), _mm_setzero_si128());
+  _mm_store_si128((__m128i*) (cp2->vcolo.slices), zero);
+  _mm_store_si128((__m128i*) (cp2->vcohi.slices), zero);
 #else
 #warning "Unimplemented function: RSPVADD (No SSE)."
 #endif
@@ -354,7 +355,7 @@ RSPVADD(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVADDC(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
@@ -363,12 +364,12 @@ RSPVADDC(struct RSPCP2 *cp2, int16_t *vd,
   unsatSum = _mm_add_epi16(vsReg, vtShuf);
 
   equalMask = _mm_cmpeq_epi16(satSum, unsatSum);
-  equalMask = _mm_cmpeq_epi16(equalMask, _mm_setzero_si128());
+  equalMask = _mm_cmpeq_epi16(equalMask, zero);
 
   _mm_store_si128((__m128i*) vd, unsatSum);
   _mm_store_si128((__m128i*) accLow, unsatSum);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), equalMask);
-  _mm_store_si128((__m128i*) (cp2->vcohi.slices), _mm_setzero_si128());
+  _mm_store_si128((__m128i*) (cp2->vcohi.slices), zero);
 #else
 #warning "Unimplemented function: RSPVADDC (No SSE)."
 #endif
@@ -379,7 +380,7 @@ RSPVADDC(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVAND(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
@@ -399,15 +400,14 @@ RSPVAND(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVCH(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
   __m128i cmp1, cmp2, negVtReg, snAluOp, temp, temp2a, temp2s;
-  __m128i ge, le, neq, sn, zero;
+  __m128i ge, le, neq, sn;
 
   /* sn = (vs ^ vt) < 0 */
-  zero = _mm_xor_si128(vsReg, vsReg);
   sn = _mm_xor_si128(vsReg, vtShuf);
   sn = _mm_cmplt_epi16(sn, zero);
 
@@ -478,13 +478,12 @@ RSPVCH(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVCL(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
   __m128i ce, eq, ge, le, lz, mask, negVtReg, sn;
-  __m128i result, satsum, sum, temp1, temp2, uz, zero;
-  zero = _mm_xor_si128(vsReg, vsReg);
+  __m128i result, satsum, sum, temp1, temp2, uz;
 
   ce = _mm_load_si128((__m128i*) (cp2->vce.slices));
   eq = _mm_load_si128((__m128i*) (cp2->vcohi.slices));
@@ -557,15 +556,14 @@ RSPVCL(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVCR(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
   __m128i cmp1, cmp2, negVtReg, notVtReg, snAluOp, temp, temp2a, temp2s;
-  __m128i ge, le, sn, zero;
+  __m128i ge, le, sn;
 
   /* sn = (vs ^ vt) < 0 */
-  zero = _mm_xor_si128(vsReg, vsReg);
   sn = _mm_xor_si128(vsReg, vtShuf);
   sn = _mm_cmplt_epi16(sn, zero);
 
@@ -624,7 +622,7 @@ RSPVCR(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVEQ(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
@@ -635,10 +633,10 @@ RSPVEQ(struct RSPCP2 *cp2, int16_t *vd,
 
   _mm_store_si128((__m128i*) accLow, vtShuf);
   _mm_store_si128((__m128i*) vd, vtShuf);
-  _mm_store_si128((__m128i*) (cp2->vcolo.slices), _mm_setzero_si128());
-  _mm_store_si128((__m128i*) (cp2->vcohi.slices), _mm_setzero_si128());
+  _mm_store_si128((__m128i*) (cp2->vcolo.slices), zero);
+  _mm_store_si128((__m128i*) (cp2->vcohi.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcclo.slices), vvcc);
-  _mm_store_si128((__m128i*) (cp2->vcchi.slices), _mm_setzero_si128());
+  _mm_store_si128((__m128i*) (cp2->vcchi.slices), zero);
 #else
 #warning "Unimplemented function: RSPVEQ (No SSE)."
 #endif
@@ -649,7 +647,7 @@ RSPVEQ(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVGE(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
@@ -659,7 +657,7 @@ RSPVGE(struct RSPCP2 *cp2, int16_t *vd,
 
   /* equal = (~vco | ~vne) && (vs == vt) */
   temp = _mm_and_si128(vne, vco);
-  temp = _mm_cmpeq_epi16(temp, _mm_setzero_si128());
+  temp = _mm_cmpeq_epi16(temp, zero);
   equal = _mm_cmpeq_epi16(vsReg, vtShuf);
   equal = _mm_and_si128(temp, equal);
 
@@ -678,10 +676,10 @@ RSPVGE(struct RSPCP2 *cp2, int16_t *vd,
 
   _mm_store_si128((__m128i*) accLow, vdReg);
   _mm_store_si128((__m128i*) vd, vdReg);
-  _mm_store_si128((__m128i*) (cp2->vcolo.slices), _mm_setzero_si128());
-  _mm_store_si128((__m128i*) (cp2->vcohi.slices), _mm_setzero_si128());
+  _mm_store_si128((__m128i*) (cp2->vcolo.slices), zero);
+  _mm_store_si128((__m128i*) (cp2->vcohi.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcclo.slices), greaterEqual);
-  _mm_store_si128((__m128i*) (cp2->vcchi.slices), _mm_setzero_si128());
+  _mm_store_si128((__m128i*) (cp2->vcchi.slices), zero);
 #else
 #warning "Unimplemented function: RSPVGE (No SSE)."
 #endif
@@ -691,8 +689,8 @@ RSPVGE(struct RSPCP2 *cp2, int16_t *vd,
  *  Instruction: VINV (Invalid Vector Operation)
  * ========================================================================= */
 void
-RSPVINV(struct RSPCP2 *unused(cp2), int16_t *unused(vd),
-  __m128i unused(vsReg), __m128i unused(vtReg), __m128i unused(vtShuf)) {
+RSPVINV(struct RSPCP2 *unused(cp2), int16_t *unused(vd), __m128i unused(vsReg),
+  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i unused(zero)) {
 }
 
 /* ============================================================================
@@ -700,7 +698,7 @@ RSPVINV(struct RSPCP2 *unused(cp2), int16_t *unused(vd),
  * ========================================================================= */
 void
 RSPVLT(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
@@ -728,10 +726,10 @@ RSPVLT(struct RSPCP2 *cp2, int16_t *vd,
 
   _mm_store_si128((__m128i*) accLow, vdReg);
   _mm_store_si128((__m128i*) vd, vdReg);
-  _mm_store_si128((__m128i*) (cp2->vcolo.slices), _mm_setzero_si128());
-  _mm_store_si128((__m128i*) (cp2->vcohi.slices), _mm_setzero_si128());
+  _mm_store_si128((__m128i*) (cp2->vcolo.slices), zero);
+  _mm_store_si128((__m128i*) (cp2->vcohi.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcclo.slices), lessthanEqual);
-  _mm_store_si128((__m128i*) (cp2->vcchi.slices), _mm_setzero_si128());
+  _mm_store_si128((__m128i*) (cp2->vcchi.slices), zero);
 #else
 #warning "Unimplemented function: RSPVLT (No SSE)."
 #endif
@@ -742,7 +740,7 @@ RSPVLT(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVMACF(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
   int16_t *accHigh = cp2->accumulatorHigh.slices;
@@ -756,7 +754,7 @@ RSPVMACF(struct RSPCP2 *cp2, int16_t *vd,
   vaccMid = _mm_load_si128((__m128i*) accMid);
 
   /* Unpack to obtain for 32-bit precision. */
-  RSPZeroExtend16to32(vaccLow, &vaccLow, &vaccHigh);
+  RSPZeroExtend16to32(vaccLow, &vaccLow, &vaccHigh, zero);
 
   /* Begin accumulating the products. */
   unpackLo = _mm_mullo_epi16(vsReg, vtShuf);
@@ -774,14 +772,14 @@ RSPVMACF(struct RSPCP2 *cp2, int16_t *vd,
   vdRegLo = _mm_xor_si128(vdRegLo, loProduct);
   vdRegHi = _mm_xor_si128(vdRegHi, hiProduct);
 #else
-  vdRegLo = _mm_blend_epi16(loProduct, _mm_setzero_si128(), 0xAA);
-  vdRegHi = _mm_blend_epi16(hiProduct, _mm_setzero_si128(), 0xAA);
+  vdRegLo = _mm_blend_epi16(loProduct, zero, 0xAA);
+  vdRegHi = _mm_blend_epi16(hiProduct, zero, 0xAA);
 #endif
 
   vaccLow = _mm_add_epi32(vaccLow, vdRegLo);
   vaccHigh = _mm_add_epi32(vaccHigh, vdRegHi);
 
-  vdReg = RSPPackLo32to16(vaccLow, vaccHigh);
+  vdReg = RSPPackLo32to16(vaccLow, vaccHigh, zero);
   _mm_store_si128((__m128i*) accLow, vdReg);
 
   /* Multiply the MSB of sources, accumulate the product. */
@@ -815,8 +813,8 @@ RSPVMACF(struct RSPCP2 *cp2, int16_t *vd,
  *  Instruction: VMACQ (Vector Accumulator Oddification)
  * ========================================================================= */
 void
-RSPVMACQ(struct RSPCP2 *unused(cp2), int16_t *unused(vd),
-  __m128i unused(vsReg), __m128i unused(vtReg), __m128i unused(vtShuf)) {
+RSPVMACQ(struct RSPCP2 *unused(cp2), int16_t *unused(vd), __m128i unused(vsReg),
+  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i unused(zero)) {
   debug("Unimplemented function: VMACQ.");
 }
 
@@ -825,7 +823,7 @@ RSPVMACQ(struct RSPCP2 *unused(cp2), int16_t *unused(vd),
  * ========================================================================= */
 void
 RSPVMACU(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
   int16_t *accHigh = cp2->accumulatorHigh.slices;
@@ -839,7 +837,7 @@ RSPVMACU(struct RSPCP2 *cp2, int16_t *vd,
   vaccMid = _mm_load_si128((__m128i*) accMid);
 
   /* Unpack to obtain for 32-bit precision. */
-  RSPZeroExtend16to32(vaccLow, &vaccLow, &vaccHigh);
+  RSPZeroExtend16to32(vaccLow, &vaccLow, &vaccHigh, zero);
 
   /* Begin accumulating the products. */
   unpackLo = _mm_mullo_epi16(vsReg, vtShuf);
@@ -857,14 +855,14 @@ RSPVMACU(struct RSPCP2 *cp2, int16_t *vd,
   vdRegLo = _mm_xor_si128(vdRegLo, loProduct);
   vdRegHi = _mm_xor_si128(vdRegHi, hiProduct);
 #else
-  vdRegLo = _mm_blend_epi16(loProduct, _mm_setzero_si128(), 0xAA);
-  vdRegHi = _mm_blend_epi16(hiProduct, _mm_setzero_si128(), 0xAA);
+  vdRegLo = _mm_blend_epi16(loProduct, zero, 0xAA);
+  vdRegHi = _mm_blend_epi16(hiProduct, zero, 0xAA);
 #endif
 
   vaccLow = _mm_add_epi32(vaccLow, vdRegLo);
   vaccHigh = _mm_add_epi32(vaccHigh, vdRegHi);
 
-  vdReg = RSPPackLo32to16(vaccLow, vaccHigh);
+  vdReg = RSPPackLo32to16(vaccLow, vaccHigh, zero);
   _mm_store_si128((__m128i*) accLow, vdReg);
 
   /* Multiply the MSB of sources, accumulate the product. */
@@ -916,7 +914,7 @@ RSPVMACU(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVMADH(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accMid = cp2->accumulatorMid.slices;
   int16_t *accHigh = cp2->accumulatorHigh.slices;
 
@@ -955,7 +953,7 @@ RSPVMADH(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVMADL(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
   int16_t *accHigh = cp2->accumulatorHigh.slices;
@@ -968,16 +966,16 @@ RSPVMADL(struct RSPCP2 *cp2, int16_t *vd,
   vaccMid = _mm_load_si128((__m128i*) accMid);
 
   /* Unpack to obtain for 32-bit precision. */
-  RSPZeroExtend16to32(vaccLow, &vaccLow, &vaccHigh);
+  RSPZeroExtend16to32(vaccLow, &vaccLow, &vaccHigh, zero);
 
   /* Begin accumulating the products. */
   unpackHi = _mm_mulhi_epu16(vsReg, vtShuf);
-  loProduct = _mm_unpacklo_epi16(unpackHi, _mm_setzero_si128());
-  hiProduct = _mm_unpackhi_epi16(unpackHi, _mm_setzero_si128());
+  loProduct = _mm_unpacklo_epi16(unpackHi, zero);
+  hiProduct = _mm_unpackhi_epi16(unpackHi, zero);
 
   vaccLow = _mm_add_epi32(vaccLow, loProduct);
   vaccHigh = _mm_add_epi32(vaccHigh, hiProduct);
-  vdReg = RSPPackLo32to16(vaccLow, vaccHigh);
+  vdReg = RSPPackLo32to16(vaccLow, vaccHigh, zero);
   _mm_store_si128((__m128i*) accLow, vdReg);
 
   /* Finish accumulating whatever is left. */
@@ -992,7 +990,7 @@ RSPVMADL(struct RSPCP2 *cp2, int16_t *vd,
 
   /* Clamp the accumulator and write it all out. */
   RSPPack32to16(vaccLow, vaccHigh, &vaccMid, &vaccHigh);
-  vdReg = RSPClampLowToVal(vdReg, vaccMid, vaccHigh);
+  vdReg = RSPClampLowToVal(vdReg, vaccMid, vaccHigh, zero);
 
   _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accMid, vaccMid);
@@ -1007,7 +1005,7 @@ RSPVMADL(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVMADM(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
   int16_t *accHigh = cp2->accumulatorHigh.slices;
@@ -1020,8 +1018,8 @@ RSPVMADM(struct RSPCP2 *cp2, int16_t *vd,
 
   /* Unpack to obtain for 32-bit precision. */
   RSPSignExtend16to32(vsReg, &vsRegLo, &vsRegHi);
-  RSPZeroExtend16to32(vtShuf, &vtRegLo, &vtRegHi);
-  RSPZeroExtend16to32(vaccLow, &vaccLow, &vaccHigh);
+  RSPZeroExtend16to32(vtShuf, &vtRegLo, &vtRegHi, zero);
+  RSPZeroExtend16to32(vaccLow, &vaccLow, &vaccHigh, zero);
 
   /* Begin accumulating the products. */
   loProduct = _mm_mullo_epi32(vsRegLo, vtRegLo);
@@ -1035,13 +1033,13 @@ RSPVMADM(struct RSPCP2 *cp2, int16_t *vd,
   vdRegLo = _mm_xor_si128(vdRegLo, loProduct);
   vdRegHi = _mm_xor_si128(vdRegHi, hiProduct);
 #else
-  vdRegLo = _mm_blend_epi16(loProduct, _mm_setzero_si128(), 0xAA);
-  vdRegHi = _mm_blend_epi16(hiProduct, _mm_setzero_si128(), 0xAA);
+  vdRegLo = _mm_blend_epi16(loProduct, zero, 0xAA);
+  vdRegHi = _mm_blend_epi16(hiProduct, zero, 0xAA);
 #endif
   vaccLow = _mm_add_epi32(vaccLow, vdRegLo);
   vaccHigh = _mm_add_epi32(vaccHigh, vdRegHi);
 
-  vdReg = RSPPackLo32to16(vaccLow, vaccHigh);
+  vdReg = RSPPackLo32to16(vaccLow, vaccHigh, zero);
   _mm_store_si128((__m128i*) accLow, vdReg);
 
   /* Multiply the MSB of sources, accumulate the product. */
@@ -1076,7 +1074,7 @@ RSPVMADM(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVMADN(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
   int16_t *accHigh = cp2->accumulatorHigh.slices;
@@ -1088,9 +1086,9 @@ RSPVMADN(struct RSPCP2 *cp2, int16_t *vd,
   vaccMid = _mm_load_si128((__m128i*) accMid);
 
   /* Unpack to obtain for 32-bit precision. */
-  RSPZeroExtend16to32(vsReg, &vsRegLo, &vsRegHi);
   RSPSignExtend16to32(vtShuf, &vtRegLo, &vtRegHi);
-  RSPZeroExtend16to32(vaccLow, &vaccLow, &vaccHigh);
+  RSPZeroExtend16to32(vsReg, &vsRegLo, &vsRegHi, zero);
+  RSPZeroExtend16to32(vaccLow, &vaccLow, &vaccHigh, zero);
 
   /* Begin accumulating the products. */
   loProduct = _mm_mullo_epi32(vsRegLo, vtRegLo);
@@ -1104,14 +1102,14 @@ RSPVMADN(struct RSPCP2 *cp2, int16_t *vd,
   vdRegLo = _mm_xor_si128(vdRegLo, loProduct);
   vdRegHi = _mm_xor_si128(vdRegHi, hiProduct);
 #else
-  vdRegLo = _mm_blend_epi16(loProduct, _mm_setzero_si128(), 0xAA);
-  vdRegHi = _mm_blend_epi16(hiProduct, _mm_setzero_si128(), 0xAA);
+  vdRegLo = _mm_blend_epi16(loProduct, zero, 0xAA);
+  vdRegHi = _mm_blend_epi16(hiProduct, zero, 0xAA);
 #endif
 
   vaccLow = _mm_add_epi32(vaccLow, vdRegLo);
   vaccHigh = _mm_add_epi32(vaccHigh, vdRegHi);
 
-   vdReg = RSPPackLo32to16(vaccLow, vaccHigh);
+   vdReg = RSPPackLo32to16(vaccLow, vaccHigh, zero);
   _mm_store_si128((__m128i*) accLow, vdReg);
 
   /* Multiply the MSB of sources, accumulate the product. */
@@ -1131,7 +1129,7 @@ RSPVMADN(struct RSPCP2 *cp2, int16_t *vd,
 
   /* Clamp the accumulator and write it all out. */
   RSPPack32to16(vaccLow, vaccHigh, &vaccMid, &vaccHigh);
-  vdReg = RSPClampLowToVal(vdReg, vaccMid, vaccHigh);
+  vdReg = RSPClampLowToVal(vdReg, vaccMid, vaccHigh, zero);
 
   _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accMid, vaccMid);
@@ -1145,8 +1143,8 @@ RSPVMADN(struct RSPCP2 *cp2, int16_t *vd,
  *  Instruction: VMOV (Vector Element Scalar Move)
  * ========================================================================= */
 void
-RSPVMOV(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i unused(vsReg), __m128i unused(vtReg), __m128i vtShuf) {
+RSPVMOV(struct RSPCP2 *cp2, int16_t *vd, __m128i unused(vsReg),
+  __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   unsigned delement = cp2->iw >> 11 & 0x1F;
 
@@ -1164,7 +1162,7 @@ RSPVMOV(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVMRG(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
@@ -1190,7 +1188,7 @@ RSPVMRG(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVMUDH(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
   int16_t *accHigh = cp2->accumulatorHigh.slices;
@@ -1210,7 +1208,7 @@ RSPVMUDH(struct RSPCP2 *cp2, int16_t *vd,
   RSPPack32to16(vaccLow, vaccHigh, &vaccMid, &vaccHigh);
 
   _mm_store_si128((__m128i*) vd, vdReg);
-  _mm_store_si128((__m128i*) accLow, _mm_setzero_si128());
+  _mm_store_si128((__m128i*) accLow, zero);
   _mm_store_si128((__m128i*) accMid, vaccMid);
   _mm_store_si128((__m128i*) accHigh, vaccHigh);
 #else
@@ -1223,7 +1221,7 @@ RSPVMUDH(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVMUDL(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vt), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vt), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
   int16_t *accHigh = cp2->accumulatorHigh.slices;
@@ -1240,8 +1238,8 @@ RSPVMUDL(struct RSPCP2 *cp2, int16_t *vd,
 
   _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accLow, vdReg);
-  _mm_store_si128((__m128i*) accMid, _mm_setzero_si128());
-  _mm_store_si128((__m128i*) accHigh, _mm_setzero_si128());
+  _mm_store_si128((__m128i*) accMid, zero);
+  _mm_store_si128((__m128i*) accHigh, zero);
 #else
   debug("Unimplemented function: VMUDL.");
 #endif
@@ -1252,7 +1250,7 @@ RSPVMUDL(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVMUDM(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
   int16_t *accHigh = cp2->accumulatorHigh.slices;
@@ -1263,15 +1261,15 @@ RSPVMUDM(struct RSPCP2 *cp2, int16_t *vd,
 
   /* Unpack to obtain for 32-bit precision. */
   RSPSignExtend16to32(vsReg, &vsRegLo, &vsRegHi);
-  RSPZeroExtend16to32(vtShuf, &vtRegLo, &vtRegHi);
+  RSPZeroExtend16to32(vtShuf, &vtRegLo, &vtRegHi, zero);
 
   /* Begin accumulating the products. */
   loProduct = _mm_mullo_epi32(vsRegLo, vtRegLo);
   hiProduct = _mm_mullo_epi32(vsRegHi, vtRegHi);
   RSPPack32to16(loProduct, hiProduct, &vaccLow, &vaccHigh);
 
-  loProduct = _mm_cmplt_epi32(loProduct, _mm_setzero_si128());
-  hiProduct = _mm_cmplt_epi32(hiProduct, _mm_setzero_si128());
+  loProduct = _mm_cmplt_epi32(loProduct, zero);
+  hiProduct = _mm_cmplt_epi32(hiProduct, zero);
   vdReg = _mm_packs_epi32(loProduct, hiProduct);
 
   _mm_store_si128((__m128i*) vd, vaccHigh);
@@ -1288,7 +1286,7 @@ RSPVMUDM(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVMUDN(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
   int16_t *accHigh = cp2->accumulatorHigh.slices;
@@ -1298,14 +1296,14 @@ RSPVMUDN(struct RSPCP2 *cp2, int16_t *vd,
   __m128i loProduct, hiProduct, vaccLow, vaccHigh;
 
   /* Unpack to obtain for 32-bit precision. */
-  RSPZeroExtend16to32(vsReg, &vsRegLo, &vsRegHi);
+  RSPZeroExtend16to32(vsReg, &vsRegLo, &vsRegHi, zero);
   RSPSignExtend16to32(vtShuf, &vtRegLo, &vtRegHi);
 
   /* Begin accumulating the products. */
   loProduct = _mm_mullo_epi32(vsRegLo, vtRegLo);
   hiProduct = _mm_mullo_epi32(vsRegHi, vtRegHi);
   RSPPack32to16(loProduct, hiProduct, &vaccLow, &vaccHigh);
-  vdReg = _mm_cmplt_epi16(vaccHigh, _mm_setzero_si128());
+  vdReg = _mm_cmplt_epi16(vaccHigh, zero);
 
   _mm_store_si128((__m128i*) vd, vaccLow);
   _mm_store_si128((__m128i*) accLow, vaccLow);
@@ -1321,15 +1319,14 @@ RSPVMUDN(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVMULF(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
   int16_t *accHigh = cp2->accumulatorHigh.slices;
 
 #ifdef USE_SSE
   __m128i lowProduct, highProduct, unpackLow, unpackHigh;
-  __m128i temp, vaccLow, vaccMid, vaccHigh, vdReg, zero;
-  zero = _mm_setzero_si128();
+  __m128i temp, vaccLow, vaccMid, vaccHigh, vdReg;
 
   /* Compute 64-bit signed product. */
   unpackLow = _mm_mullo_epi16(vsReg, vtShuf);
@@ -1370,8 +1367,8 @@ RSPVMULF(struct RSPCP2 *cp2, int16_t *vd,
  *  Instruction: VMULQ (Vector Multiply MPEG Quantization)
  * ========================================================================= */
 void
-RSPVMULQ(struct RSPCP2 *unused(cp2), int16_t *unused(vd),
-  __m128i unused(vsReg), __m128i unused(vtReg), __m128i unused(vtShuf)) {
+RSPVMULQ(struct RSPCP2 *unused(cp2), int16_t *unused(vd), __m128i unused(vsReg),
+  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i unused(zero)) {
   debug("Unimplemented function: VMULQ.");
 }
 
@@ -1380,15 +1377,14 @@ RSPVMULQ(struct RSPCP2 *unused(cp2), int16_t *unused(vd),
  * ========================================================================= */
 void
 RSPVMULU(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
   int16_t *accHigh = cp2->accumulatorHigh.slices;
 
 #ifdef USE_SSE
   __m128i lowProduct, highProduct, unpackLow, unpackHigh;
-  __m128i temp, vaccLow, vaccMid, vaccHigh, vdReg, zero;
-  zero = _mm_setzero_si128();
+  __m128i temp, vaccLow, vaccMid, vaccHigh, vdReg;
 
   /* Compute 64-bit signed product. */
   unpackLow = _mm_mullo_epi16(vsReg, vtShuf);
@@ -1432,7 +1428,7 @@ RSPVMULU(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVNAND(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
@@ -1452,21 +1448,21 @@ RSPVNAND(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVNE(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
   __m128i vne = _mm_load_si128((__m128i*) (cp2->vcohi.slices));
   __m128i notequal = _mm_cmpeq_epi16(vtShuf, vsReg);
-  notequal = _mm_cmpeq_epi16(notequal, _mm_setzero_si128());
+  notequal = _mm_cmpeq_epi16(notequal, zero);
   __m128i vvcc = _mm_or_si128(notequal, vne);
 
   _mm_store_si128((__m128i*) accLow, vsReg);
   _mm_store_si128((__m128i*) vd, vsReg);
-  _mm_store_si128((__m128i*) (cp2->vcolo.slices), _mm_setzero_si128());
-  _mm_store_si128((__m128i*) (cp2->vcohi.slices), _mm_setzero_si128());
+  _mm_store_si128((__m128i*) (cp2->vcolo.slices), zero);
+  _mm_store_si128((__m128i*) (cp2->vcohi.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcclo.slices), vvcc);
-  _mm_store_si128((__m128i*) (cp2->vcchi.slices), _mm_setzero_si128());
+  _mm_store_si128((__m128i*) (cp2->vcchi.slices), zero);
 #else
 #warning "Unimplemented function: RSPVNE (No SSE)."
 #endif
@@ -1476,8 +1472,8 @@ RSPVNE(struct RSPCP2 *cp2, int16_t *vd,
  *  Instruction: VNOP (Vector No Operation)
  * ========================================================================= */
 void
-RSPVNOP(struct RSPCP2 *unused(cp2), int16_t *unused(vd),
-  __m128i unused(vsReg), __m128i unused(vtReg), __m128i unused(vtShuf)) {
+RSPVNOP(struct RSPCP2 *unused(cp2), int16_t *unused(vd), __m128i unused(vsReg),
+  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i unused(zero)) {
 }
 
 /* ============================================================================
@@ -1485,7 +1481,7 @@ RSPVNOP(struct RSPCP2 *unused(cp2), int16_t *unused(vd),
  * ========================================================================= */
 void
 RSPVNOR(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
@@ -1505,7 +1501,7 @@ RSPVNOR(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVOR(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
@@ -1525,7 +1521,7 @@ RSPVOR(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVNXOR(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
@@ -1545,7 +1541,7 @@ RSPVNXOR(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVRCP(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf) {
+  __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   unsigned delement = cp2->iw >> 11 & 0x1F;
   unsigned element = cp2->iw >> 21 & 0xF;
@@ -1600,7 +1596,7 @@ FOUND_MSB:
  * ========================================================================= */
 void
 RSPVRCPH(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf) {
+  __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf, __m128i unused(zero)) {
   unsigned delement = cp2->iw >> 11 & 0x1F;
   unsigned element = cp2->iw >> 21 & 0xF;
   int16_t *accLow = cp2->accumulatorLow.slices;
@@ -1624,7 +1620,7 @@ RSPVRCPH(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVRCPL(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf) {
+  __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   unsigned delement = cp2->iw >> 11 & 0x1F;
   unsigned element = cp2->iw >> 21 & 0xF;
@@ -1684,8 +1680,8 @@ FOUND_MSB:
  *  Instruction: VRNDN (Vector Accumulator DCT Rounding (Negative))
  * ========================================================================= */
 void
-RSPVRNDN(struct RSPCP2 *unused(cp2), int16_t *unused(vd),
-  __m128i unused(vsReg), __m128i unused(vtReg), __m128i unused(vtShuf)) {
+RSPVRNDN(struct RSPCP2 *unused(cp2), int16_t *unused(vd), __m128i unused(vsReg),
+  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i unused(zero)) {
   debug("Unimplemented function: VRNDN.");
 }
 
@@ -1693,8 +1689,8 @@ RSPVRNDN(struct RSPCP2 *unused(cp2), int16_t *unused(vd),
  *  Instruction: VRNDP (Vector Accumulator DCT Rounding (Positive))
  * ========================================================================= */
 void
-RSPVRNDP(struct RSPCP2 *unused(cp2), int16_t *unused(vd),
-  __m128i unused(vsReg), __m128i unused(vtReg), __m128i unused(vtShuf)) {
+RSPVRNDP(struct RSPCP2 *unused(cp2), int16_t *unused(vd), __m128i unused(vsReg),
+  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i unused(zero)) {
   debug("Unimplemented function: VRNDP.");
 }
 
@@ -1702,8 +1698,8 @@ RSPVRNDP(struct RSPCP2 *unused(cp2), int16_t *unused(vd),
  *  Instruction: VRSQ (Vector Element Scalar SQRT Reciprocal)
  * ========================================================================= */
 void
-RSPVRSQ(struct RSPCP2 *unused(cp2), int16_t *unused(vd),
-  __m128i unused(vsReg), __m128i unused(vtReg), __m128i unused(vtShuf)) {
+RSPVRSQ(struct RSPCP2 *unused(cp2), int16_t *unused(vd), __m128i unused(vsReg),
+  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i unused(zero)) {
   debug("Unimplemented function: VRSQ.");
 }
 
@@ -1712,7 +1708,7 @@ RSPVRSQ(struct RSPCP2 *unused(cp2), int16_t *unused(vd),
  * ========================================================================= */
 void
 RSPVRSQH(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf) {
+  __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   unsigned delement = cp2->iw >> 11 & 0x1F;
   unsigned element = cp2->iw >> 21 & 0xF;
@@ -1736,7 +1732,8 @@ RSPVRSQH(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVRSQL(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf) {
+  __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf, __m128i unused(zero)) {
+
   int16_t *accLow = cp2->accumulatorLow.slices;
   unsigned delement = cp2->iw >> 11 & 0x1F;
   unsigned element = cp2->iw >> 21 & 0xF;
@@ -1799,7 +1796,7 @@ FOUND_MSB:
  * ========================================================================= */
 void
 RSPVSAR(struct RSPCP2 *cp2, int16_t *vd, __m128i unused(vsReg),
-  __m128i unused(vtReg), __m128i unused(vtShuf)) {
+  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
   int16_t *accHigh = cp2->accumulatorHigh.slices;
@@ -1841,7 +1838,7 @@ RSPVSAR(struct RSPCP2 *cp2, int16_t *vd, __m128i unused(vsReg),
  * ========================================================================= */
 void
 RSPVSUB(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
@@ -1857,8 +1854,8 @@ RSPVSUB(struct RSPCP2 *cp2, int16_t *vd,
 
   /* VD is the signed diff of the two sources and the carry. Since we */
   /* have to saturate the diff of all three, we have to be clever. */
-  vtRegNeg = _mm_cmplt_epi16(vtShuf, _mm_setzero_si128());
-  vtRegPos = _mm_cmpeq_epi16(vtRegNeg, _mm_setzero_si128());
+  vtRegNeg = _mm_cmplt_epi16(vtShuf, zero);
+  vtRegPos = _mm_cmpeq_epi16(vtRegNeg, zero);
 
   vdReg = _mm_subs_epi16(vsReg, vtShuf);
   vMask = _mm_cmpeq_epi16(unsatDiff, vdReg);
@@ -1871,8 +1868,8 @@ RSPVSUB(struct RSPCP2 *cp2, int16_t *vd,
 
   _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accLow, vaccLow);
-  _mm_store_si128((__m128i*) (cp2->vcolo.slices), _mm_setzero_si128());
-  _mm_store_si128((__m128i*) (cp2->vcohi.slices), _mm_setzero_si128());
+  _mm_store_si128((__m128i*) (cp2->vcolo.slices), zero);
+  _mm_store_si128((__m128i*) (cp2->vcohi.slices), zero);
 #else
 #warning "Unimplemented function: RSPVSUB (No SSE)."
 #endif
@@ -1883,7 +1880,7 @@ RSPVSUB(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVSUBC(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
@@ -1893,9 +1890,9 @@ RSPVSUBC(struct RSPCP2 *cp2, int16_t *vd,
   vdReg = _mm_sub_epi16(vsReg, vtShuf);
 
   /* Set the carry out flags when difference is < 0. */
-  notEqualMask = _mm_cmpeq_epi16(vdReg, _mm_setzero_si128());
-  notEqualMask = _mm_cmpeq_epi16(notEqualMask, _mm_setzero_si128());
-  lessThanMask = _mm_cmpeq_epi16(satDiff, _mm_setzero_si128());
+  notEqualMask = _mm_cmpeq_epi16(vdReg, zero);
+  notEqualMask = _mm_cmpeq_epi16(notEqualMask, zero);
+  lessThanMask = _mm_cmpeq_epi16(satDiff, zero);
   lessThanMask = _mm_and_si128(lessThanMask, notEqualMask);
 
   _mm_store_si128((__m128i*) vd, vdReg);
@@ -1912,7 +1909,7 @@ RSPVSUBC(struct RSPCP2 *cp2, int16_t *vd,
  * ========================================================================= */
 void
 RSPVXOR(struct RSPCP2 *cp2, int16_t *vd,
-  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf) {
+  __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
 #ifdef USE_SSE
@@ -1955,8 +1952,9 @@ RSPCycleCP2(struct RSPCP2 *cp2) {
     __m128i vt = _mm_load_si128((__m128i*) (cp2->regs[vtRegister].slices));
     __m128i vs = _mm_load_si128((__m128i*) (cp2->regs[vsRegister].slices));
     __m128i vtShuf = RSPGetVectorOperands(vt, iw >> 21 & 0xF);
+    __m128i zero = _mm_setzero_si128();
 
-    RSPVectorFunctionTable[cp2->opcode.id](cp2, vd, vs, vt, vtShuf);
+    RSPVectorFunctionTable[cp2->opcode.id](cp2, vd, vs, vt, vtShuf, zero);
     cp2->mulStageDest = (vd - cp2->regs[0].slices) >> 3;
   }
 
