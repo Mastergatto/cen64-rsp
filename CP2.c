@@ -1543,42 +1543,31 @@ __m128i
 RSPVRCP(struct RSPCP2 *cp2, int16_t *vd,
   __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
-  unsigned delement = cp2->iw >> 11 & 0x1F;
-  unsigned element = cp2->iw >> 21 & 0xF;
-  int16_t vtData[8];
+  unsigned delement = cp2->iw >> 11 & 0x7;
+  unsigned element = cp2->iw >> 21 & 0x7;
 
+  int shift;
   unsigned int addr;
-  int data;
-  int fetch;
-  int shift = 32;
+  int32_t fetch;
+  int32_t data;
 
-  _mm_storeu_si128((__m128i*) vtData, vtReg);
-  cp2->divIn = (int) vtData[element & 07];
-  data = cp2->divIn;
+  _mm_store_si128((__m128i*) accLow, vtReg);
+  if ((data = cp2->divIn = accLow[element]) < 0)
+    data = -data;
 
-  if (data < 0)
-      data = -data;
+  if (!data)
+    shift = 0x10;
+  else
+    shift =__builtin_clz(data);
 
-  /* while (shift > 0) or ((shift ^ 31) < 32) */
-  do {
-    --shift;
-    if (data & (1 << shift))
-      goto FOUND_MSB;
-  } while (shift);
+  addr = ((data << shift) & 0x7FC00000) >> 22;
+  fetch = (uint32_t) ReciprocalLUT[addr] << 14;
+  cp2->divOut = (0x40000000 | fetch) >> (shift ^ 31);
 
-  shift = 16 ^ 31;
-FOUND_MSB:
-  shift ^= 31;
-  addr = (data << shift) >> 22;
-  fetch = ReciprocalLUT[addr &= 0x000001FF];
-  shift ^= 31;
-  cp2->divOut = (0x40000000 | (fetch << 14)) >> shift;
-
-  if (cp2->divIn < 0)
-    cp2->divOut = ~cp2->divOut;
-  else if (cp2->divIn == 0)
+  cp2->divOut ^= cp2->divIn >> 31;
+  if (cp2->divIn == 0)
     cp2->divOut = 0x7FFFFFFF;
-  else if (cp2->divIn == -32768)
+  else if (cp2->divIn == (int32_t) 0xFFFF8000)
     cp2->divOut = 0xFFFF0000;
 
 #ifdef USE_SSE
@@ -1587,7 +1576,7 @@ FOUND_MSB:
 #warning "Unimplemented function: RSPVRCP (No SSE)."
 #endif
 
-  vd[delement & 07] = (short) cp2->divOut;
+  vd[delement] = (short) cp2->divOut;
   cp2->doublePrecision = 0;
   return _mm_load_si128((__m128i*) vd);
 }
@@ -1624,49 +1613,48 @@ __m128i
 RSPVRCPL(struct RSPCP2 *cp2, int16_t *vd,
   __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
-  unsigned delement = cp2->iw >> 11 & 0x1F;
-  unsigned element = cp2->iw >> 21 & 0xF;
+  unsigned delement = cp2->iw >> 11 & 0x7;
+  unsigned element = cp2->iw >> 21 & 0x7;
   int data, fetch, shift = 32;
-  int16_t vtData[8];
   unsigned addr;
 
-  _mm_storeu_si128((__m128i*) vtData, vtReg);
+  _mm_store_si128((__m128i*) accLow, vtReg);
 
-  if (cp2->doublePrecision)
-    cp2->divIn |= (unsigned short) vtData[element & 0x7];
+  if (cp2->doublePrecision) {
+    cp2->divIn |= (uint16_t) accLow[element];
+    data = cp2->divIn;
+    shift = 0x00;
 
-  else
-    cp2->divIn = vtData[element & 0x7] & 0x0000FFFF;
+    if (data < 0) {
+      if (data >= -32768)
+        data = -data;
+      else
+        data = ~data;
+    }
+  }
 
-  data = cp2->divIn;
-  if (data < 0)
-      /* -(x) if >=; ~(x) if < */
-      data = -data - (data < -32768);
+  else {
+    data = cp2->divIn = accLow[element];
+    shift = 0x10;
 
-  /* while (shift > 0) or ((shift ^ 31) < 32) */
-  do {
-    --shift;
+    if (data < 0)
+      data = -data;
+  }
 
-    if (data & (1 << shift))
-      goto FOUND_MSB;
-  } while (shift);
+  if (data != 0)
+    shift =__builtin_clz(data);
 
-  /* if (data == 0) shift = DPH ? 16 ^ 31 : 0 ^ 31; */
-  shift = 31 - 16 * (int) cp2->doublePrecision;
-
-FOUND_MSB:
-  shift ^= 31;
   addr = (data << shift) >> 22;
   fetch = ReciprocalLUT[addr &= 0x000001FF];
   shift ^= 31;
   cp2->divOut = (0x40000000 | (fetch << 14)) >> shift;
 
-  if (cp2->divIn < 0)
-    cp2->divOut = ~cp2->divOut;
-  else if (cp2->divIn == 0)
+  cp2->divOut ^= cp2->divIn >> 31;
+  if (cp2->divIn == 0)
     cp2->divOut = 0x7FFFFFFF;
-  else if (cp2->divIn == -32768)
+  else if (cp2->divIn == (int32_t) 0xFFFF8000)
     cp2->divOut = 0xFFFF0000;
+
 
 #ifdef USE_SSE
   _mm_store_si128((__m128i*) accLow, vtShuf);
@@ -1674,7 +1662,7 @@ FOUND_MSB:
 #warning "Unimplemented function: RSPVRCPL (No SSE)."
 #endif
 
-  vd[delement & 0x7] = (short) cp2->divOut;
+  vd[delement] = (short) cp2->divOut;
   cp2->doublePrecision = false;
   return _mm_load_si128((__m128i*) vd);
 }
@@ -1740,52 +1728,51 @@ RSPVRSQH(struct RSPCP2 *cp2, int16_t *vd,
 __m128i
 RSPVRSQL(struct RSPCP2 *cp2, int16_t *vd,
   __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf, __m128i unused(zero)) {
-
   int16_t *accLow = cp2->accumulatorLow.slices;
-  unsigned delement = cp2->iw >> 11 & 0x1F;
-  unsigned element = cp2->iw >> 21 & 0xF;
-  int data, fetch, shift = 32;
-  int16_t vtData[8];
+  unsigned delement = cp2->iw >> 11 & 0x7;
+  unsigned element = cp2->iw >> 21 & 0x7;
+
+  int32_t data, fetch;
   unsigned addr;
+  int shift;
 
-  _mm_storeu_si128((__m128i*) vtData, vtReg);
+  _mm_store_si128((__m128i*) accLow, vtReg);
 
-  if (cp2->doublePrecision)
-    cp2->divIn |= (unsigned short) vtData[element & 0x7];
-  else
-    cp2->divIn  = vtData[element & 0x7] & 0x0000FFFF; /* Do not sign-extend. */
+  if (cp2->doublePrecision) {
+    cp2->divIn |= (uint16_t) accLow[element];
+    data = cp2->divIn;
+    shift = 0x00;
 
-  data = cp2->divIn;
+    if (data < 0) {
+      if (data >= -32768)
+        data = -data;
+      else
+        data = ~data;
+    }
+  }
 
-  if (data < 0)
-    /* -(x) if >=; ~(x) if < */
-    data = -data - (data < -32768);
+  else {
+    data = cp2->divIn = accLow[element];
+    shift = 0x10;
 
-  /* while (shift > 0) or ((shift ^ 31) < 32) */
-  do {
-    --shift;
-    if (data & (1 << shift))
-      goto FOUND_MSB;
-  } while (shift);
+    if (data < 0)
+      data = -data;
+  }
 
-  /* if (data == 0) shift = DPH ? 16 ^ 31 : 0 ^ 31; */
-  shift = 31 - 16 * cp2->doublePrecision;
+  if (data != 0)
+    shift =__builtin_clz(data);
 
-FOUND_MSB:
-  shift ^= 31;
   addr = (data << shift) >> 22;
-  addr &= 0x000001FE;
-  addr |= 0x00000200 | (shift & 1);
+  addr = ((addr | 0x200) & 0x3FE) | (shift & 1);
   fetch = ReciprocalLUT[addr];
-  shift ^= 31;
-  shift >>= 1;
+
+  shift = (shift ^ 31) >> 1;
   cp2->divOut = (0x40000000 | (fetch << 14)) >> shift;
 
-  if (cp2->divIn < 0)
-    cp2->divOut = ~cp2->divOut;
-  else if (cp2->divIn == 0)
+  cp2->divOut ^= cp2->divIn >> 31;
+  if (cp2->divIn == 0)
     cp2->divOut = 0x7FFFFFFF;
-  else if (cp2->divIn == -32768)
+  else if (cp2->divIn == (int32_t) 0xFFFF8000)
     cp2->divOut = 0xFFFF0000;
 
 #ifdef USE_SSE
