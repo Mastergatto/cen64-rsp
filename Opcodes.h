@@ -42,7 +42,7 @@ struct RSPCP2;
 #include "ScalarOpcodes.md"
 #undef X
 
-#define X(op) void RSP##op( \
+#define X(op) __m128i RSP##op( \
   struct RSPCP2 *, int16_t *, __m128i, __m128i, __m128i, __m128i);
 #include "VectorOpcodes.md"
 #undef X
@@ -50,7 +50,7 @@ struct RSPCP2;
 typedef void (*const RSPScalarFunction)
   (struct RSP *, uint32_t, uint32_t);
 
-typedef void (*const RSPVectorFunction)
+typedef __m128i (*const RSPVectorFunction)
   (struct RSPCP2 *, int16_t *, __m128i, __m128i, __m128i, __m128i);
 
 extern const RSPScalarFunction RSPScalarFunctionTable[NUM_RSP_SCALAR_OPCODES];

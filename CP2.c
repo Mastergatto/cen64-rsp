@@ -290,8 +290,8 @@ _mm_mullo_epi32(__m128i a, __m128i b) {
 /* ============================================================================
  *  Instruction: VABS (Vector Absolute Value of Short Elements)
  * ========================================================================= */
-void
-RSPVABS(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVABS(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -308,8 +308,8 @@ RSPVABS(struct RSPCP2 *cp2, int16_t *vd,
   resultLessThan = _mm_and_si128(valLessThan, resultLessThan);
   vdReg = _mm_xor_si128(vdReg, resultLessThan);
 
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accLow, vdReg);
+  return vdReg;
 #else
 #warning "Unimplemented function: RSPVABS (No SSE)."
 #endif
@@ -318,8 +318,8 @@ RSPVABS(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VADD (Vector Add of Short Elements)
  * ========================================================================= */
-void
-RSPVADD(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVADD(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -341,10 +341,10 @@ RSPVADD(struct RSPCP2 *cp2, int16_t *vd,
   minimum = _mm_adds_epi16(minimum, carryOut);
   vdReg = _mm_adds_epi16(minimum, maximum);
 
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accLow, vaccLow);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), zero);
+  return vdReg;
 #else
 #warning "Unimplemented function: RSPVADD (No SSE)."
 #endif
@@ -353,8 +353,8 @@ RSPVADD(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VADDC (Vector Add of Short Elements with Carry)
  * ========================================================================= */
-void
-RSPVADDC(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVADDC(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -366,10 +366,10 @@ RSPVADDC(struct RSPCP2 *cp2, int16_t *vd,
   equalMask = _mm_cmpeq_epi16(satSum, unsatSum);
   equalMask = _mm_cmpeq_epi16(equalMask, zero);
 
-  _mm_store_si128((__m128i*) vd, unsatSum);
   _mm_store_si128((__m128i*) accLow, unsatSum);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), equalMask);
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), zero);
+  return unsatSum;
 #else
 #warning "Unimplemented function: RSPVADDC (No SSE)."
 #endif
@@ -378,8 +378,8 @@ RSPVADDC(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VAND (Vector AND of Short Elements)
  * ========================================================================= */
-void
-RSPVAND(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVAND(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -387,9 +387,8 @@ RSPVAND(struct RSPCP2 *cp2, int16_t *vd,
   __m128i vdReg;
 
   vdReg = _mm_and_si128(vtShuf, vsReg);
-
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accLow, vdReg);
+  return vdReg;
 #else
 #warning "Unimplemented function: RSPVAND (No SSE)."
 #endif
@@ -398,8 +397,8 @@ RSPVAND(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VCH (Vector Select Clip Test High)
  * ========================================================================= */
-void
-RSPVCH(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVCH(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -467,7 +466,7 @@ RSPVCH(struct RSPCP2 *cp2, int16_t *vd,
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), sn);
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), neq);
   _mm_store_si128((__m128i*) accLow, temp);
-  _mm_store_si128((__m128i*) vd, temp);
+  return temp;
 #else
 #warning "Unimplemented function: RSPVCH (No SSE)."
 #endif
@@ -476,8 +475,8 @@ RSPVCH(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VCL (Vector Select Clip Test Low)
  * ========================================================================= */
-void
-RSPVCL(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVCL(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -539,13 +538,13 @@ RSPVCL(struct RSPCP2 *cp2, int16_t *vd,
   result = _mm_blendv_epi8(vsReg, negVtReg, mask);
 #endif
 
-  _mm_store_si128((__m128i*) vd, result);
   _mm_store_si128((__m128i*) accLow, result);
   _mm_store_si128((__m128i*) (cp2->vcclo.slices), le);
   _mm_store_si128((__m128i*) (cp2->vcchi.slices), ge);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vce.slices), zero);
+  return result;
 #else
 #warning "Unimplemented function: RSPVCL (No SSE)."
 #endif
@@ -554,8 +553,8 @@ RSPVCL(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VCR (Vector Select Crimp Test Low)
  * ========================================================================= */
-void
-RSPVCR(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVCR(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -604,14 +603,12 @@ RSPVCR(struct RSPCP2 *cp2, int16_t *vd,
 #endif
 
   _mm_store_si128((__m128i*) accLow, temp);
-  _mm_store_si128((__m128i*) vd, temp);
-
-  temp = _mm_packs_epi16(le, ge);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcclo.slices), le);
   _mm_store_si128((__m128i*) (cp2->vcchi.slices), ge);
   _mm_store_si128((__m128i*) (cp2->vce.slices), zero);
+  return temp;
 #else
 #warning "Unimplemented function: RSPVCR (No SSE)."
 #endif
@@ -620,8 +617,8 @@ RSPVCR(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VEQ (Vector Select Equal)
  * ========================================================================= */
-void
-RSPVEQ(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVEQ(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -632,11 +629,11 @@ RSPVEQ(struct RSPCP2 *cp2, int16_t *vd,
   __m128i vvcc = _mm_and_si128(equal, vne);
 
   _mm_store_si128((__m128i*) accLow, vtShuf);
-  _mm_store_si128((__m128i*) vd, vtShuf);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcclo.slices), vvcc);
   _mm_store_si128((__m128i*) (cp2->vcchi.slices), zero);
+  return vtShuf;
 #else
 #warning "Unimplemented function: RSPVEQ (No SSE)."
 #endif
@@ -645,8 +642,8 @@ RSPVEQ(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VGE (Vector Select Greater Than or Equal)
  * ========================================================================= */
-void
-RSPVGE(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVGE(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -675,11 +672,11 @@ RSPVGE(struct RSPCP2 *cp2, int16_t *vd,
 #endif
 
   _mm_store_si128((__m128i*) accLow, vdReg);
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcclo.slices), greaterEqual);
   _mm_store_si128((__m128i*) (cp2->vcchi.slices), zero);
+  return vdReg;
 #else
 #warning "Unimplemented function: RSPVGE (No SSE)."
 #endif
@@ -688,16 +685,17 @@ RSPVGE(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VINV (Invalid Vector Operation)
  * ========================================================================= */
-void
-RSPVINV(struct RSPCP2 *unused(cp2), int16_t *unused(vd), __m128i unused(vsReg),
+__m128i
+RSPVINV(struct RSPCP2 *unused(cp2), int16_t *vd, __m128i unused(vsReg),
   __m128i unused(vtReg), __m128i unused(vtShuf), __m128i unused(zero)) {
+  return _mm_load_si128((__m128i*) vd);
 }
 
 /* ============================================================================
  *  Instruction: VLT (Vector Select Less Than or Equal)
  * ========================================================================= */
-void
-RSPVLT(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVLT(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -725,11 +723,11 @@ RSPVLT(struct RSPCP2 *cp2, int16_t *vd,
 #endif
 
   _mm_store_si128((__m128i*) accLow, vdReg);
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcclo.slices), lessthanEqual);
   _mm_store_si128((__m128i*) (cp2->vcchi.slices), zero);
+  return vdReg;
 #else
 #warning "Unimplemented function: RSPVLT (No SSE)."
 #endif
@@ -738,8 +736,8 @@ RSPVLT(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VMACF (Vector Multiply-Accumulate of Signed Fractions)
  * ========================================================================= */
-void
-RSPVMACF(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVMACF(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
@@ -801,9 +799,9 @@ RSPVMACF(struct RSPCP2 *cp2, int16_t *vd,
   vdReg = _mm_packs_epi32(vaccLow, vaccHigh);
   RSPPack32to16(vaccLow, vaccHigh, &vaccMid, &vaccHigh);
 
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accMid, vaccMid);
   _mm_store_si128((__m128i*) accHigh, vaccHigh);
+  return vdReg;
 #else
 #warning "Unimplemented function: VMACF (No SSE)."
 #endif
@@ -812,16 +810,17 @@ RSPVMACF(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VMACQ (Vector Accumulator Oddification)
  * ========================================================================= */
-void
+__m128i
 RSPVMACQ(struct RSPCP2 *unused(cp2), int16_t *unused(vd), __m128i unused(vsReg),
-  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i unused(zero)) {
+  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i zero) {
   debug("Unimplemented function: VMACQ.");
+  return zero;
 }
 
 /* ============================================================================
  *  Instruction: VMACU (Vector Multiply-Accumulate of Unsigned Fractions)
  * ========================================================================= */
-void
+__m128i
 RSPVMACU(struct RSPCP2 *cp2, int16_t *vd,
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
@@ -907,13 +906,15 @@ RSPVMACU(struct RSPCP2 *cp2, int16_t *vd,
     result &= ~tmp;
     vd[i] = result;
   }
+
+  return _mm_load_si128((__m128i*) vd);
 }
 
 /* ============================================================================
  *  Instruction: VMADH (Vector Multiply-Accumulate of High Partial Products)
  * ========================================================================= */
-void
-RSPVMADH(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVMADH(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accMid = cp2->accumulatorMid.slices;
   int16_t *accHigh = cp2->accumulatorHigh.slices;
@@ -940,9 +941,9 @@ RSPVMADH(struct RSPCP2 *cp2, int16_t *vd,
   vdReg = _mm_packs_epi32(vaccLow, vaccHigh);
   RSPPack32to16(vaccLow, vaccHigh, &vaccMid, &vaccHigh);
 
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accMid, vaccMid);
   _mm_store_si128((__m128i*) accHigh, vaccHigh);
+  return vdReg;
 #else
 #warning "Unimplemented function: RSPVMADH (No SSE)."
 #endif
@@ -951,8 +952,8 @@ RSPVMADH(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VMADL (Vector Multiply-Accumulate of Lower Partial Products).
  * ========================================================================= */
-void
-RSPVMADL(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVMADL(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
@@ -992,9 +993,9 @@ RSPVMADL(struct RSPCP2 *cp2, int16_t *vd,
   RSPPack32to16(vaccLow, vaccHigh, &vaccMid, &vaccHigh);
   vdReg = RSPClampLowToVal(vdReg, vaccMid, vaccHigh, zero);
 
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accMid, vaccMid);
   _mm_store_si128((__m128i*) accHigh, vaccHigh);
+  return vdReg;
 #else
 #warning "Unimplemented function: RSPVMADL (No SSE)."
 #endif
@@ -1003,8 +1004,8 @@ RSPVMADL(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VMADM (Vector Multiply-Accumulate of Mid Partial Products)
  * ========================================================================= */
-void
-RSPVMADM(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVMADM(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
@@ -1061,9 +1062,9 @@ RSPVMADM(struct RSPCP2 *cp2, int16_t *vd,
   vdReg = _mm_packs_epi32(vaccLow, vaccHigh);
   RSPPack32to16(vaccLow, vaccHigh, &vaccMid, &vaccHigh);
 
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accMid, vaccMid);
   _mm_store_si128((__m128i*) accHigh, vaccHigh);
+  return vdReg;
 #else
 #warning "Unimplemented function: RSPVMADM (No SSE)."
 #endif
@@ -1072,8 +1073,8 @@ RSPVMADM(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VMADN (Vector Multiply-Accumulate of Mid Partial Products)
  * ========================================================================= */
-void
-RSPVMADN(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVMADN(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
@@ -1131,9 +1132,9 @@ RSPVMADN(struct RSPCP2 *cp2, int16_t *vd,
   RSPPack32to16(vaccLow, vaccHigh, &vaccMid, &vaccHigh);
   vdReg = RSPClampLowToVal(vdReg, vaccMid, vaccHigh, zero);
 
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accMid, vaccMid);
   _mm_store_si128((__m128i*) accHigh, vaccHigh);
+  return vdReg;
 #else
 #warning "Unimplemented function: RSPVMADN (No SSE)."
 #endif
@@ -1142,7 +1143,7 @@ RSPVMADN(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VMOV (Vector Element Scalar Move)
  * ========================================================================= */
-void
+__m128i
 RSPVMOV(struct RSPCP2 *cp2, int16_t *vd, __m128i unused(vsReg),
   __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
@@ -1155,13 +1156,14 @@ RSPVMOV(struct RSPCP2 *cp2, int16_t *vd, __m128i unused(vsReg),
 #endif
 
   vd[delement & 0x7] = accLow[delement & 0x7];
+  return _mm_load_si128((__m128i*) vd);
 }
 
 /* ============================================================================
  *  Instruction: VMRG (Vector Select Merge)
  * ========================================================================= */
-void
-RSPVMRG(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVMRG(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -1177,7 +1179,7 @@ RSPVMRG(struct RSPCP2 *cp2, int16_t *vd,
 #endif
 
   _mm_store_si128((__m128i*) accLow, vaccLow);
-  _mm_store_si128((__m128i*) vd, vaccLow);
+  return vaccLow;
 #else
 #warning "Unimplemented function: RSPVMRG (No SSE)."
 #endif
@@ -1186,8 +1188,8 @@ RSPVMRG(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VMUDH (Vector Multiply of High Partial Products)
  * ========================================================================= */
-void
-RSPVMUDH(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVMUDH(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
@@ -1207,10 +1209,10 @@ RSPVMUDH(struct RSPCP2 *cp2, int16_t *vd,
   vdReg = _mm_packs_epi32(vaccLow, vaccHigh);
   RSPPack32to16(vaccLow, vaccHigh, &vaccMid, &vaccHigh);
 
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accLow, zero);
   _mm_store_si128((__m128i*) accMid, vaccMid);
   _mm_store_si128((__m128i*) accHigh, vaccHigh);
+  return vdReg;
 #else
   debug("Unimplemented function: VMUDH.");
 #endif
@@ -1219,8 +1221,8 @@ RSPVMUDH(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VMUDL (Vector Multiply of Low Partial Products)
  * ========================================================================= */
-void
-RSPVMUDL(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVMUDL(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vt), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
@@ -1236,20 +1238,20 @@ RSPVMUDL(struct RSPCP2 *cp2, int16_t *vd,
   hiProduct = _mm_unpackhi_epi16(unpackLo, unpackHi);
   vdReg = RSPPackHi32to16(loProduct, hiProduct);
 
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accLow, vdReg);
   _mm_store_si128((__m128i*) accMid, zero);
   _mm_store_si128((__m128i*) accHigh, zero);
 #else
   debug("Unimplemented function: VMUDL.");
 #endif
+  return vdReg;
 }
 
 /* ============================================================================
  *  Instruction: VMUDM (Vector Multiply of Middle Partial Products)
  * ========================================================================= */
-void
-RSPVMUDM(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVMUDM(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
@@ -1272,10 +1274,10 @@ RSPVMUDM(struct RSPCP2 *cp2, int16_t *vd,
   hiProduct = _mm_cmplt_epi32(hiProduct, zero);
   vdReg = _mm_packs_epi32(loProduct, hiProduct);
 
-  _mm_store_si128((__m128i*) vd, vaccHigh);
   _mm_store_si128((__m128i*) accLow, vaccLow);
   _mm_store_si128((__m128i*) accMid, vaccHigh);
   _mm_store_si128((__m128i*) accHigh, vdReg);
+  return vaccHigh;
 #else
   debug("Unimplemented function: VMUDM.");
 #endif
@@ -1284,8 +1286,8 @@ RSPVMUDM(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VMUDN (Vector Multiply of Middle Partial Products)
  * ========================================================================= */
-void
-RSPVMUDN(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVMUDN(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
@@ -1305,10 +1307,10 @@ RSPVMUDN(struct RSPCP2 *cp2, int16_t *vd,
   RSPPack32to16(loProduct, hiProduct, &vaccLow, &vaccHigh);
   vdReg = _mm_cmplt_epi16(vaccHigh, zero);
 
-  _mm_store_si128((__m128i*) vd, vaccLow);
   _mm_store_si128((__m128i*) accLow, vaccLow);
   _mm_store_si128((__m128i*) accMid, vaccHigh);
   _mm_store_si128((__m128i*) accHigh, vdReg);
+  return vaccLow;
 #else
   debug("Unimplemented function: VMUDN.");
 #endif
@@ -1317,8 +1319,8 @@ RSPVMUDN(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VMULF (Vector Multiply of Signed Fractions).
  * ========================================================================= */
-void
-RSPVMULF(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVMULF(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
@@ -1357,7 +1359,7 @@ RSPVMULF(struct RSPCP2 *cp2, int16_t *vd,
   _mm_store_si128((__m128i*) accLow, vaccLow);
   _mm_store_si128((__m128i*) accMid, vaccMid);
   _mm_store_si128((__m128i*) accHigh, vaccHigh);
-  _mm_store_si128((__m128i*) vd, vdReg);
+  return vdReg;
 #else
   debug("Unimplemented function: VMULF.");
 #endif
@@ -1366,17 +1368,18 @@ RSPVMULF(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VMULQ (Vector Multiply MPEG Quantization)
  * ========================================================================= */
-void
+__m128i
 RSPVMULQ(struct RSPCP2 *unused(cp2), int16_t *unused(vd), __m128i unused(vsReg),
-  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i unused(zero)) {
+  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i zero) {
   debug("Unimplemented function: VMULQ.");
+  return zero;
 }
 
 /* ============================================================================
  *  Instruction: VMULU (Vector Multiply of Unsigned Fractions).
  * ========================================================================= */
-void
-RSPVMULU(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVMULU(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
   int16_t *accMid = cp2->accumulatorMid.slices;
@@ -1417,7 +1420,7 @@ RSPVMULU(struct RSPCP2 *cp2, int16_t *vd,
   _mm_store_si128((__m128i*) accLow, vaccLow);
   _mm_store_si128((__m128i*) accMid, vaccMid);
   _mm_store_si128((__m128i*) accHigh, vaccHigh);
-  _mm_store_si128((__m128i*) vd, vdReg);
+  return vdReg;
 #else
   debug("Unimplemented function: VMULU.");
 #endif
@@ -1426,8 +1429,8 @@ RSPVMULU(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VNAND (Vector NAND of Short Elements)
  * ========================================================================= */
-void
-RSPVNAND(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVNAND(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -1435,9 +1438,8 @@ RSPVNAND(struct RSPCP2 *cp2, int16_t *vd,
   __m128i vdReg;
 
   vdReg = _mm_nand_si128(vtShuf, vsReg);
-
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accLow, vdReg);
+  return vdReg;
 #else
 #warning "Unimplemented function: RSPVNAND (No SSE)."
 #endif
@@ -1446,8 +1448,8 @@ RSPVNAND(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VNE (Vector Select Not Equal)
  * ========================================================================= */
-void
-RSPVNE(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVNE(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -1458,11 +1460,11 @@ RSPVNE(struct RSPCP2 *cp2, int16_t *vd,
   __m128i vvcc = _mm_or_si128(notequal, vne);
 
   _mm_store_si128((__m128i*) accLow, vsReg);
-  _mm_store_si128((__m128i*) vd, vsReg);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcclo.slices), vvcc);
   _mm_store_si128((__m128i*) (cp2->vcchi.slices), zero);
+  return vsReg;
 #else
 #warning "Unimplemented function: RSPVNE (No SSE)."
 #endif
@@ -1471,16 +1473,17 @@ RSPVNE(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VNOP (Vector No Operation)
  * ========================================================================= */
-void
-RSPVNOP(struct RSPCP2 *unused(cp2), int16_t *unused(vd), __m128i unused(vsReg),
+__m128i
+RSPVNOP(struct RSPCP2 *unused(cp2), int16_t *vd, __m128i unused(vsReg),
   __m128i unused(vtReg), __m128i unused(vtShuf), __m128i unused(zero)) {
+  return _mm_load_si128((__m128i*) vd);
 }
 
 /* ============================================================================
  *  Instruction: VNOR (Vector NOR of Short Elements)
  * ========================================================================= */
-void
-RSPVNOR(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVNOR(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -1488,9 +1491,8 @@ RSPVNOR(struct RSPCP2 *cp2, int16_t *vd,
   __m128i vdReg;
 
   vdReg = _mm_nor_si128(vtShuf, vsReg);
-
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accLow, vdReg);
+  return vdReg;
 #else
 #warning "Unimplemented function: RSPVNOR (No SSE)."
 #endif
@@ -1499,8 +1501,8 @@ RSPVNOR(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VOR (Vector OR of Short Elements)
  * ========================================================================= */
-void
-RSPVOR(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVOR(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -1508,9 +1510,8 @@ RSPVOR(struct RSPCP2 *cp2, int16_t *vd,
   __m128i vdReg;
 
   vdReg = _mm_or_si128(vtShuf, vsReg);
-
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accLow, vdReg);
+  return vdReg;
 #else
 #warning "Unimplemented function: RSPVOR (No SSE)."
 #endif
@@ -1519,8 +1520,8 @@ RSPVOR(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VNXOR (Vector NXOR of Short Elements)
  * ========================================================================= */
-void
-RSPVNXOR(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVNXOR(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -1528,9 +1529,8 @@ RSPVNXOR(struct RSPCP2 *cp2, int16_t *vd,
   __m128i vdReg;
 
   vdReg = _mm_nxor_si128(vtShuf, vsReg);
-
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accLow, vdReg);
+  return vdReg;
 #else
 #warning "Unimplemented function: RSPVNXOR (No SSE)."
 #endif
@@ -1539,7 +1539,7 @@ RSPVNXOR(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VRCP (Vector Element Scalar Reciprocal (Single Precision))
  * ========================================================================= */
-void
+__m128i
 RSPVRCP(struct RSPCP2 *cp2, int16_t *vd,
   __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
@@ -1587,14 +1587,15 @@ FOUND_MSB:
 #warning "Unimplemented function: RSPVRCP (No SSE)."
 #endif
 
-    vd[delement & 07] = (short) cp2->divOut;
-    cp2->doublePrecision = 0;
+  vd[delement & 07] = (short) cp2->divOut;
+  cp2->doublePrecision = 0;
+  return _mm_load_si128((__m128i*) vd);
 }
 
 /* ============================================================================
  *  Instruction: VRCPH (Vector Element Scalar Reciprocal (Double Prec. High))
  * ========================================================================= */
-void
+__m128i
 RSPVRCPH(struct RSPCP2 *cp2, int16_t *vd,
   __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf, __m128i unused(zero)) {
   unsigned delement = cp2->iw >> 11 & 0x1F;
@@ -1613,12 +1614,13 @@ RSPVRCPH(struct RSPCP2 *cp2, int16_t *vd,
 
   vd[delement & 0x7] = cp2->divOut >> 16;
   cp2->doublePrecision = true;
+  return _mm_load_si128((__m128i*) vd);
 }
 
 /* ============================================================================
  *  Instruction: VRCPL (Vector Element Scalar Reciprocal (Double Prec. Low))
  * ========================================================================= */
-void
+__m128i
 RSPVRCPL(struct RSPCP2 *cp2, int16_t *vd,
   __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
@@ -1674,39 +1676,43 @@ FOUND_MSB:
 
   vd[delement & 0x7] = (short) cp2->divOut;
   cp2->doublePrecision = false;
+  return _mm_load_si128((__m128i*) vd);
 }
 
 /* ============================================================================
  *  Instruction: VRNDN (Vector Accumulator DCT Rounding (Negative))
  * ========================================================================= */
-void
+__m128i
 RSPVRNDN(struct RSPCP2 *unused(cp2), int16_t *unused(vd), __m128i unused(vsReg),
-  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i unused(zero)) {
+  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i zero) {
   debug("Unimplemented function: VRNDN.");
+  return zero;
 }
 
 /* ============================================================================
  *  Instruction: VRNDP (Vector Accumulator DCT Rounding (Positive))
  * ========================================================================= */
-void
+__m128i
 RSPVRNDP(struct RSPCP2 *unused(cp2), int16_t *unused(vd), __m128i unused(vsReg),
-  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i unused(zero)) {
+  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i zero) {
   debug("Unimplemented function: VRNDP.");
+  return zero;
 }
 
 /* ============================================================================
  *  Instruction: VRSQ (Vector Element Scalar SQRT Reciprocal)
  * ========================================================================= */
-void
+__m128i
 RSPVRSQ(struct RSPCP2 *unused(cp2), int16_t *unused(vd), __m128i unused(vsReg),
-  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i unused(zero)) {
+  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i zero) {
   debug("Unimplemented function: VRSQ.");
+  return zero;
 }
 
 /* ============================================================================
  *  Instruction: VRSQH (Vector Element Scalar SQRT Reciprocal (Double Prec. H))
  * ========================================================================= */
-void
+__m128i
 RSPVRSQH(struct RSPCP2 *cp2, int16_t *vd,
   __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
@@ -1725,12 +1731,13 @@ RSPVRSQH(struct RSPCP2 *cp2, int16_t *vd,
 
   vd[delement & 07] = cp2->divOut >> 16;
   cp2->doublePrecision = true;
+  return _mm_load_si128((__m128i*) vd);
 }
 
 /* ============================================================================
  *  Instruction: VRSQL (Vector Element Scalar SQRT Reciprocal (Double Prec. L))
  * ========================================================================= */
-void
+__m128i
 RSPVRSQL(struct RSPCP2 *cp2, int16_t *vd,
   __m128i unused(vsReg), __m128i vtReg, __m128i vtShuf, __m128i unused(zero)) {
 
@@ -1789,12 +1796,13 @@ FOUND_MSB:
 
   vd[delement & 0x7] = (short) cp2->divOut;
   cp2->doublePrecision = false;
+  return _mm_load_si128((__m128i*) vd);
 }
 
 /* ============================================================================
  *  Instruction: VSAR (Vector Accumulator Read (and Write))
  * ========================================================================= */
-void
+__m128i
 RSPVSAR(struct RSPCP2 *cp2, int16_t *vd, __m128i unused(vsReg),
   __m128i unused(vtReg), __m128i unused(vtShuf), __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
@@ -1831,13 +1839,15 @@ RSPVSAR(struct RSPCP2 *cp2, int16_t *vd, __m128i unused(vsReg),
     default:
       memset(vd, 0, sizeof(short) * 8);
   }
+
+  return _mm_load_si128((__m128i*) vd);
 }
 
 /* ============================================================================
  *  Instruction: VSUB (Vector Subtraction of Short Elements)
  * ========================================================================= */
-void
-RSPVSUB(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVSUB(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -1866,10 +1876,10 @@ RSPVSUB(struct RSPCP2 *cp2, int16_t *vd,
   carryOut = _mm_or_si128(vtRegNeg, vtRegPos);
   vdReg = _mm_subs_epi16(vdReg, carryOut);
 
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accLow, vaccLow);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), zero);
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), zero);
+  return vdReg;
 #else
 #warning "Unimplemented function: RSPVSUB (No SSE)."
 #endif
@@ -1878,8 +1888,8 @@ RSPVSUB(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VSUBC (Vector Subtraction of Short Elements with Carry)
  * ========================================================================= */
-void
-RSPVSUBC(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVSUBC(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i zero) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -1895,10 +1905,10 @@ RSPVSUBC(struct RSPCP2 *cp2, int16_t *vd,
   lessThanMask = _mm_cmpeq_epi16(satDiff, zero);
   lessThanMask = _mm_and_si128(lessThanMask, notEqualMask);
 
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accLow, vdReg);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), lessThanMask);
   _mm_store_si128((__m128i*) (cp2->vcohi.slices), notEqualMask);
+  return vdReg;
 #else
 #warning "Unimplemented function: RSPVSUBC (No SSE)."
 #endif
@@ -1907,8 +1917,8 @@ RSPVSUBC(struct RSPCP2 *cp2, int16_t *vd,
 /* ============================================================================
  *  Instruction: VXOR (Vector XOR of Short Elements)
  * ========================================================================= */
-void
-RSPVXOR(struct RSPCP2 *cp2, int16_t *vd,
+__m128i
+RSPVXOR(struct RSPCP2 *cp2, int16_t *unused(vd),
   __m128i vsReg, __m128i unused(vtReg), __m128i vtShuf, __m128i unused(zero)) {
   int16_t *accLow = cp2->accumulatorLow.slices;
 
@@ -1916,9 +1926,8 @@ RSPVXOR(struct RSPCP2 *cp2, int16_t *vd,
   __m128i vdReg;
 
   vdReg = _mm_xor_si128(vtShuf, vsReg);
-
-  _mm_store_si128((__m128i*) vd, vdReg);
   _mm_store_si128((__m128i*) accLow, vdReg);
+  return vdReg;
 #else
 #warning "Unimplemented function: RSPVXOR (No SSE)."
 #endif
@@ -1954,7 +1963,10 @@ RSPCycleCP2(struct RSPCP2 *cp2) {
     __m128i vtShuf = RSPGetVectorOperands(vt, iw >> 21 & 0xF);
     __m128i zero = _mm_setzero_si128();
 
-    RSPVectorFunctionTable[cp2->opcode.id](cp2, vd, vs, vt, vtShuf, zero);
+    __m128i vdReg = RSPVectorFunctionTable[cp2->opcode.id](
+      cp2, vd, vs, vt, vtShuf, zero);
+
+    _mm_store_si128((__m128i*) vd, vdReg);
     cp2->mulStageDest = (vd - cp2->regs[0].slices) >> 3;
   }
 
