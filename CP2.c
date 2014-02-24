@@ -1790,44 +1790,15 @@ RSPVRSQL(struct RSPCP2 *cp2, int16_t *vd,
  *  Instruction: VSAR (Vector Accumulator Read (and Write))
  * ========================================================================= */
 __m128i
-RSPVSAR(struct RSPCP2 *cp2, int16_t *vd, __m128i unused(vsReg),
-  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i unused(zero)) {
-  int16_t *accLow = cp2->accumulatorLow.slices;
-  int16_t *accMid = cp2->accumulatorMid.slices;
-  int16_t *accHigh = cp2->accumulatorHigh.slices;
-  unsigned element = cp2->iw >> 21 & 0xF;
+RSPVSAR(struct RSPCP2 *cp2, int16_t *unused(vd), __m128i unused(vsReg),
+  __m128i unused(vtReg), __m128i unused(vtShuf), __m128i zero) {
+  unsigned element = cp2->iw >> 21 & 0x7;
+  __m128i vector = zero;
 
-  /* ==========================================================================
-   * Even though `vt` is ignored in VSAR, according to official sources as well
-   * as reversing, lots of games seem to specify it as nonzero, possibly to
-   * avoid register stalling or other VU hazards.  Not really certain why yet.
-   * ======================================================================= */
+  if (element < 3)
+    vector = _mm_load_si128((__m128i*) (&cp2->accumulatorHigh + element));
 
-  element ^= 0x8;
-
-  /* ==========================================================================
-   * Or, for exception overrides, should this be `e &= 0x7;` ?
-   * Currently this code is safer because &= is less likely to catch oddities.
-   * Either way, documentation shows that the switch range is 0:2, not 8:A.
-   * ======================================================================= */
-  switch (element) {
-    case 0:
-      memcpy(vd, accHigh, sizeof(short) * 8);
-      break;
-
-    case 1:
-      memcpy(vd, accMid, sizeof(short) * 8);
-      break;
-
-    case 2:
-      memcpy(vd, accLow, sizeof(short) * 8);
-      break;
-
-    default:
-      memset(vd, 0, sizeof(short) * 8);
-  }
-
-  return _mm_load_si128((__m128i*) vd);
+  return vector;
 }
 
 /* ============================================================================
