@@ -483,6 +483,7 @@ RSPVCL(struct RSPCP2 *cp2, int16_t *unused(vd),
 #ifdef USE_SSE
   __m128i ce, eq, ge, le, lz, mask, negVtReg, sn;
   __m128i result, satsum, sum, temp1, temp2, uz;
+  __m128i newge, newle;
 
   ce = _mm_load_si128((__m128i*) (cp2->vce.slices));
   eq = _mm_load_si128((__m128i*) (cp2->vcohi.slices));
@@ -491,19 +492,20 @@ RSPVCL(struct RSPCP2 *cp2, int16_t *unused(vd),
   sn = _mm_load_si128((__m128i*) (cp2->vcolo.slices));
   eq = _mm_cmpeq_epi16(eq, zero); /* ~eq */
 
-  /* (sn && eq) ? -vt : vt */
-  mask = _mm_and_si128(sn, eq);
-  negVtReg = _mm_xor_si128(mask, vtShuf);
-  negVtReg = _mm_add_epi16(mask, negVtReg);
+  /* (sn) ? -vt : vt */
+  negVtReg = _mm_xor_si128(vtShuf, sn);
+  negVtReg = _mm_sub_epi16(negVtReg, sn);
 
   /* lz = ((sum & 0x0000FFFF) == 0x00000000 */
   /* uz = ((sum & 0xFFFF0000) == 0x00000000 */
   satsum = _mm_adds_epu16(vsReg, vtShuf);
   sum = _mm_add_epi16(vsReg, vtShuf);
-  uz = _mm_cmpeq_epi16(sum, satsum);
+  uz = _mm_cmplt_epi16(sum, satsum);
+  uz = _mm_cmpeq_epi16(uz, zero);
   lz = _mm_cmpeq_epi16(sum, zero);
 
   /* if (sn && eq) le = ((!ce) & (lz & uz)) | (ce & (lz | uz)) */
+  mask = _mm_and_si128(sn, eq);
   temp1 = _mm_or_si128(lz, uz);
   result = _mm_and_si128(ce, temp1);
   temp1 = _mm_cmpeq_epi16(ce, zero);
@@ -511,23 +513,34 @@ RSPVCL(struct RSPCP2 *cp2, int16_t *unused(vd),
   temp1 = _mm_and_si128(temp1, temp2);
   temp2 = _mm_or_si128(result, temp1);
 #ifdef SSSE3_ONLY
-  temp2 = _mm_and_si128(mask, temp2);
-  temp1 = _mm_andnot_si128(mask, le);
-  le = _mm_or_si128(temp1, temp2);
+  newle = _mm_and_si128(mask, temp2);
+  le = _mm_andnot_si128(mask, le);
+  le = _mm_or_si128(le, newle);
 #else
-  le = _mm_blendv_epi8(le, temp2, mask);
+  newle = _mm_blendv_epi8(le, temp2, mask);
 #endif
 
   /* if (!sn && eq) ge = ((vs - vt) >= 0) */
-  temp1 = _mm_cmpgt_epi16(vtShuf, vsReg);
-  temp1 = _mm_cmpeq_epi16(temp1, zero);
-  temp2 = _mm_andnot_si128(sn, eq);
+  mask = _mm_andnot_si128(sn, eq);
+  temp2 = _mm_subs_epu16(vsReg, vtShuf);
+  temp1 = _mm_adds_epu16(temp2, vtShuf);
+  temp1 = _mm_cmpeq_epi16(temp1, vsReg);
 #ifdef SSSE3_ONLY
-  temp1 = _mm_and_si128(temp2, temp1);
-  temp2 = _mm_andnot_si128(temp2, ge);
-  ge = _mm_or_si128(temp1, temp2);
+  newge = _mm_and_si128(mask, temp1);
+  ge = _mm_andnot_si128(mask, ge);
+  ge = _mm_or_si128(ge, newge);
 #else
-  ge = _mm_blendv_epi8(ge, temp1, temp2);
+  newge = _mm_blendv_epi8(ge, temp1, mask);
+#endif
+
+  /* selector = sn ? le : ge; */
+  /* acc = selector ? {-}vt : vs; */
+#ifdef SSSE3_ONLY
+  temp1 = _mm_and_si128(sn, le);
+  temp2 = _mm_andnot_si128(sn, ge);
+  mask = _mm_or_si128(temp1, temp2);
+#else
+  mask = _mm_blendv_epi8(ge, le, sn);
 #endif
 
 #ifdef SSSE3_ONLY
@@ -538,7 +551,7 @@ RSPVCL(struct RSPCP2 *cp2, int16_t *unused(vd),
   result = _mm_blendv_epi8(vsReg, negVtReg, mask);
 #endif
 
-  _mm_store_si128((__m128i*) accLow, result);
+  _mm_storeu_si128((__m128i*) accLow, result);
   _mm_store_si128((__m128i*) (cp2->vcclo.slices), le);
   _mm_store_si128((__m128i*) (cp2->vcchi.slices), ge);
   _mm_store_si128((__m128i*) (cp2->vcolo.slices), zero);
@@ -569,7 +582,7 @@ RSPVCR(struct RSPCP2 *cp2, int16_t *unused(vd),
   /* if ( sn) { snAluOp = (vs + vt); } */
   /* if (!sn) { snAluOp = (vs - vt); } */
   notVtReg = _mm_xor_si128(vtShuf, sn);
-  negVtReg = _mm_add_epi16(notVtReg, sn);
+  negVtReg = _mm_sub_epi16(notVtReg, sn);
   snAluOp = _mm_sub_epi16(vsReg, negVtReg);
 
   /* Compute ge, le for each case. */
