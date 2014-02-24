@@ -38,11 +38,6 @@ struct RSPCP2 {
   struct RSPVector accumulatorMid;
   struct RSPVector accumulatorLow;
 
-  /* Be lazy; leave VCC/VCO ready for vector functions. */
-  /* When it comes time to generate, use: _mm_movemask_epi8. */
-  struct RSPVector compareCode;
-  struct RSPVector carryOut;
-
   /* We cheat to assist vectorization: */
   /* On hardware, VCO is VCOHI | VCOLO. */
   /* On hardware, VCC is VCCHI | VCCLO. */

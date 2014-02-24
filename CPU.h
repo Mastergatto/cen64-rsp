@@ -39,10 +39,7 @@ enum RSPRegister {
 struct RSP {
   uint8_t dmem[RSP_DMEM_SIZE];
   uint8_t imem[RSP_IMEM_SIZE];
-
-  /* Having a larger array than necessary allows us to eliminate */
-  /* a costly branch in the writeback stage every cycle. */
-  uint32_t regs[NUM_RSP_REGISTERS + NUM_RSP_VP_REGISTERS + 1];
+  uint32_t regs[NUM_RSP_REGISTERS];
 
   struct BusController *bus;
   struct RSPCP0 cp0;
