@@ -317,18 +317,6 @@ SPRegRead(void *_rsp, uint32_t address, void *_data) {
   debugarg("SPRegRead: Reading from register [%s].", SPRegisterMnemonics[reg]);
 
   switch(reg) {
-  case CMD_START:
-  case CMD_END:
-  case CMD_CURRENT:
-  case CMD_STATUS:
-  case CMD_CLOCK:
-  case CMD_BUSY:
-  case CMD_PIPE_BUSY:
-  case CMD_TMEM_BUSY:
-    DPRegRead(rsp->rdp, DP_REGS_BASE_ADDRESS +
-      4 * (((unsigned) reg) - CMD_START), data);
-    break;
-
   case SP_SEMAPHORE_REG:
     *data = 1;
 
@@ -411,18 +399,6 @@ SPRegWrite(void *_rsp, uint32_t address, void *_data) {
   case SP_SEMAPHORE_REG:
     if (*data == 0)
       rsp->cp0.regs[SP_SEMAPHORE_REG] = 0;
-    break;
-
-  case CMD_START:
-  case CMD_END:
-  case CMD_CURRENT:
-  case CMD_STATUS:
-  case CMD_CLOCK:
-  case CMD_BUSY:
-  case CMD_PIPE_BUSY:
-  case CMD_TMEM_BUSY:
-    DPRegWrite(rsp->rdp, DP_REGS_BASE_ADDRESS +
-      4 * (((unsigned) reg) - CMD_START), data);
     break;
 
   default:

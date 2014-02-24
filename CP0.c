@@ -46,7 +46,9 @@ RSPMFC0(struct RSP *rsp, uint32_t unused(rs), uint32_t unused(rt)) {
   unsigned dest = GET_RT(rdexLatch->iw);
   unsigned result;
 
-  SPRegRead(rsp, SP_REGS_BASE_ADDRESS + (rd * sizeof(uint32_t)), &result);
+  (rd >= CMD_START)
+    ? DPRegRead(rsp->rdp, DP_REGS_BASE_ADDRESS + ((rd - CMD_START) << 2), &result)
+    : SPRegRead(rsp, SP_REGS_BASE_ADDRESS + (rd << 2), &result);
 
   exdfLatch->result.data = result;
   exdfLatch->result.dest = dest;
@@ -61,7 +63,10 @@ RSPMTC0(struct RSP *rsp, uint32_t unused(rs), uint32_t rt) {
   struct RSPEXDFLatch *exdfLatch = &rsp->pipeline.exdfLatch;
   unsigned rd = rdexLatch->iw >> 11 & 0x1F;
 
-  SPRegWrite(rsp, SP_REGS_BASE_ADDRESS + (rd * sizeof(uint32_t)), &rt);
+  (rd >= CMD_START)
+    ? DPRegWrite(rsp->rdp, DP_REGS_BASE_ADDRESS + ((rd - CMD_START) << 2), &rt)
+    : SPRegWrite(rsp, SP_REGS_BASE_ADDRESS + (rd << 2), &rt);
+
   memset(&exdfLatch->result, 0, sizeof(exdfLatch->result));
 }
 
