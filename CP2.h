@@ -46,11 +46,12 @@ struct RSPCP2 {
   /* We cheat to assist vectorization: */
   /* On hardware, VCO is VCOHI | VCOLO. */
   /* On hardware, VCC is VCCHI | VCCLO. */
-  struct RSPVector vcohi;
   struct RSPVector vcolo;
-  struct RSPVector vcchi;
+  struct RSPVector vcohi;
   struct RSPVector vcclo;
+  struct RSPVector vcchi;
   struct RSPVector vce;
+  struct RSPVector pad;
 
   /* Having a larger array than necessary allows us to eliminate */
   /* a costly branch in the writeback stage every cycle. */
@@ -83,12 +84,8 @@ void RSPCycleCP2(struct RSPCP2 *);
 void RSPInitCP2(struct RSPCP2 *);
 
 #ifdef USE_SSE
-uint16_t RSPGetVCC(const struct RSPCP2 *);
-uint8_t RSPGetVCE(const struct RSPCP2 *);
-uint16_t RSPGetVCO(const struct RSPCP2 *);
-void RSPSetVCC(struct RSPCP2 *, uint16_t);
-void RSPSetVCE(struct RSPCP2 *, uint8_t);
-void RSPSetVCO(struct RSPCP2 *, uint16_t);
+int16_t RSPGetFlags(const struct RSPVector *, const struct RSPVector *);
+void RSPSetFlags(struct RSPVector *, struct RSPVector *, uint16_t);
 #endif
 
 #endif

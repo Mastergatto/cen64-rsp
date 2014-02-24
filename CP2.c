@@ -63,37 +63,14 @@ RSPClampLowToVal(__m128i vaccLow,
 }
 
 /* ============================================================================
- *  RSPGetVCC: Get VCC in the "old" format.
+ *  RSPGetFlags: Get VCC/VCE/VCO in scalar format..
  * ========================================================================= */
 #ifdef USE_SSE
-uint16_t
-RSPGetVCC(const struct RSPCP2 *cp2) {
-  __m128i vge = _mm_load_si128((__m128i*) (cp2->vcchi.slices));
-  __m128i vle = _mm_load_si128((__m128i*) (cp2->vcclo.slices));
-  return _mm_movemask_epi8(_mm_packs_epi16(vle, vge));
-}
-#endif
-
-/* ============================================================================
- *  RSPGetVCE: Get VCE in the "old" format.
- * ========================================================================= */
-#ifdef USE_SSE
-uint8_t
-RSPGetVCE(const struct RSPCP2 *cp2) {
-  __m128i vce = _mm_load_si128((__m128i*) (cp2->vce.slices));
-  return _mm_movemask_epi8(_mm_packs_epi16(vce, vce));
-}
-#endif
-
-/* ============================================================================
- *  RSPGetVCO: Get VCO in the "old" format.
- * ========================================================================= */
-#ifdef USE_SSE
-uint16_t
-RSPGetVCO(const struct RSPCP2 *cp2) {
-  __m128i vne = _mm_load_si128((__m128i*) (cp2->vcohi.slices));
-  __m128i vco = _mm_load_si128((__m128i*) (cp2->vcolo.slices));
-  return _mm_movemask_epi8(_mm_packs_epi16(vco, vne));
+int16_t
+RSPGetFlags(const struct RSPVector *vlo, const struct RSPVector *vhi) {
+  __m128i hi = _mm_load_si128((__m128i*) (vhi->slices));
+  __m128i lo = _mm_load_si128((__m128i*) (vlo->slices));
+  return _mm_movemask_epi8(_mm_packs_epi16(lo, hi));
 }
 #endif
 
@@ -172,6 +149,9 @@ RSPPack32to16(__m128i low, __m128i high, __m128i *lowOut, __m128i *highOut) {
   *highOut = _mm_unpackhi_epi64(low, high);
 }
 
+/* ============================================================================
+ *  RSPSetFlags: Transforms VCC/VCE/VCO from scalar to vector format.
+ * ========================================================================= */
 #ifdef USE_SSE
 static const uint16_t setLUT[16][4] align(64) = {
   {0x0000U, 0x0000U, 0x0000U, 0x0000},
@@ -192,35 +172,12 @@ static const uint16_t setLUT[16][4] align(64) = {
   {0xFFFFU, 0xFFFFU, 0xFFFFU, 0xFFFF},
 };
 
-/* ============================================================================
- *  RSPSetVCC: Set VCC given the "old" format.
- * ========================================================================= */
 void
-RSPSetVCC(struct RSPCP2 *cp2, uint16_t vcc) {
-  memcpy(cp2->vcclo.slices + 0, setLUT[(vcc >>  0) & 0xF], sizeof(*setLUT));
-  memcpy(cp2->vcclo.slices + 4, setLUT[(vcc >>  4) & 0xF], sizeof(*setLUT));
-  memcpy(cp2->vcchi.slices + 0, setLUT[(vcc >>  8) & 0xF], sizeof(*setLUT));
-  memcpy(cp2->vcchi.slices + 4, setLUT[(vcc >> 12) & 0xF], sizeof(*setLUT));
-}
-
-/* ============================================================================
- *  RSPSetVCE: Set VCE given the "old" format.
- * ========================================================================= */
-void
-RSPSetVCE(struct RSPCP2 *cp2, uint8_t vce) {
-  memcpy(cp2->vce.slices + 0, setLUT[(vce >>  0) & 0xF], sizeof(*setLUT));
-  memcpy(cp2->vce.slices + 4, setLUT[(vce >>  4) & 0xF], sizeof(*setLUT));
-}
-
-/* ============================================================================
- *  RSPSetVCO: Set VCO given the "old" format.
- * ========================================================================= */
-void
-RSPSetVCO(struct RSPCP2 *cp2, uint16_t vco) {
-  memcpy(cp2->vcolo.slices + 0, setLUT[(vco >>  0) & 0xF], sizeof(*setLUT));
-  memcpy(cp2->vcolo.slices + 4, setLUT[(vco >>  4) & 0xF], sizeof(*setLUT));
-  memcpy(cp2->vcohi.slices + 0, setLUT[(vco >>  8) & 0xF], sizeof(*setLUT));
-  memcpy(cp2->vcohi.slices + 4, setLUT[(vco >> 12) & 0xF], sizeof(*setLUT));
+RSPSetFlags(struct RSPVector *vlo, struct RSPVector *vhi, uint16_t flags) {
+  memcpy(vlo->slices + 0, setLUT[(flags >>  0) & 0xF], sizeof(*setLUT));
+  memcpy(vlo->slices + 4, setLUT[(flags >>  4) & 0xF], sizeof(*setLUT));
+  memcpy(vhi->slices + 0, setLUT[(flags >>  8) & 0xF], sizeof(*setLUT));
+  memcpy(vhi->slices + 4, setLUT[(flags >> 12) & 0xF], sizeof(*setLUT));
 }
 #endif
 

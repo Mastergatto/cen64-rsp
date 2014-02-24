@@ -252,16 +252,16 @@ RSPCFC2(struct RSP *rsp, uint32_t unused(rs), uint32_t unused(rt)) {
   const struct RSPRDEXLatch *rdexLatch = &rsp->pipeline.rdexLatch;
   struct RSPEXDFLatch *exdfLatch = &rsp->pipeline.exdfLatch;
 
-  unsigned source = rdexLatch->iw >> 11 & 0x1F;
+  unsigned source = rdexLatch->iw >> 11 & 0x3;
   unsigned dest = rdexLatch->iw >> 16 & 0x1F;
   unsigned data;
 
-  switch (source & 3) {
-    case 0: data = (int) ((short) RSPGetVCO(&rsp->cp2)); break;
-    case 1: data = (int) ((short) RSPGetVCC(&rsp->cp2)); break;
-    case 2: data = RSPGetVCE(&rsp->cp2); break;
-    case 3: data = RSPGetVCE(&rsp->cp2); break;
-  }
+  if (source == 3)
+    source = 2;
+
+  data = RSPGetFlags(
+    &(rsp->cp2.vcolo) + (1 << source),
+    &(rsp->cp2.vcohi) + (1 << source));
 
   exdfLatch->result.data = data;
   exdfLatch->result.dest = dest;
@@ -273,14 +273,15 @@ RSPCFC2(struct RSP *rsp, uint32_t unused(rs), uint32_t unused(rt)) {
 void
 RSPCTC2(struct RSP *rsp, uint32_t unused(rs), uint32_t rt) {
   const struct RSPRDEXLatch *rdexLatch = &rsp->pipeline.rdexLatch;
-  unsigned dest = rdexLatch->iw >> 11 & 0x1F;
+  unsigned dest = rdexLatch->iw >> 11 & 0x3;
 
-  switch (dest & 3) {
-    case 0: RSPSetVCO(&rsp->cp2, rt); break;
-    case 1: RSPSetVCC(&rsp->cp2, rt); break;
-    case 2: RSPSetVCE(&rsp->cp2, rt); break;
-    case 3: RSPSetVCE(&rsp->cp2, rt); break;
-  }
+  if (dest > 1)
+    rt &= 0xFF;
+
+  RSPSetFlags(
+    &(rsp->cp2.vcolo) + (1 << dest),
+    &(rsp->cp2.vcohi) + (1 << dest),
+    rt);
 }
 
 /* ============================================================================
